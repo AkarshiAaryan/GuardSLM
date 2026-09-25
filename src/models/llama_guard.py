@@ -8,20 +8,21 @@ from ..utils.logging import setup_logger
 logger = setup_logger("LlamaGuardAdapter")
 
 class LlamaGuardAdapter(GuardModel):
-    """Adapter for Llama Guard 3 safety models."""
+    """Adapter for Llama Guard open-source safety models."""
 
     def __init__(self, name: str = "llama_guard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
-        self.checkpoint = self.config.get("checkpoint")
+        self.checkpoint = self.config.get("checkpoint", "meta-llama/Llama-Guard-3-1B")
         self.prompt_template = self.config.get("prompt_template", "prompts/base_guard_prompt.txt")
+        self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.tokenizer = None
         self.model = None
 
     def load(self) -> None:
         if not self.config.get("enabled", False) or not self.checkpoint:
             raise NotImplementedError(
-                f"Llama Guard adapter is not enabled or missing checkpoint in config/models.yaml.\n"
-                f"To run in Colab: set enabled: true and checkpoint: 'meta-llama/Llama-Guard-3-8B' (or 'meta-llama/Llama-Guard-3-1B')."
+                f"Llama Guard adapter is disabled or missing checkpoint in config/models.yaml.\n"
+                f"Set enabled: true and checkpoint: 'meta-llama/Llama-Guard-3-1B' (or 'meta-llama/Llama-Guard-3-8B')."
             )
 
         logger.info(f"Loading Llama Guard checkpoint: {self.checkpoint}...")
@@ -30,12 +31,27 @@ class LlamaGuardAdapter(GuardModel):
             from transformers import AutoTokenizer, AutoModelForCausalLM
 
             self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint, trust_remote_code=True)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.checkpoint,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                device_map="auto" if torch.cuda.is_available() else None,
-                trust_remote_code=True
-            )
+            
+            kwargs = {"trust_remote_code": True}
+            if torch.cuda.is_available():
+                kwargs["device_map"] = "auto"
+                if self.load_in_4bit:
+                    try:
+                        from transformers import BitsAndBytesConfig
+                        kwargs["quantization_config"] = BitsAndBytesConfig(
+                            load_in_4bit=True,
+                            bnb_4bit_compute_dtype=torch.float16
+                        )
+                    except Exception as q_err:
+                        logger.warning(f"BitsAndBytes 4-bit quantization unavailable, falling back to float16: {q_err}")
+                        kwargs["torch_dtype"] = torch.float16
+                else:
+                    kwargs["torch_dtype"] = torch.float16
+            else:
+                kwargs["torch_dtype"] = torch.float32
+
+            self.model = AutoModelForCausalLM.from_pretrained(self.checkpoint, **kwargs)
+            logger.info(f"Successfully loaded {self.checkpoint}!")
         except Exception as e:
             logger.error(f"Failed loading Llama Guard model '{self.checkpoint}': {e}")
             raise RuntimeError(f"Model load error: {e}")

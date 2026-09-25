@@ -1,40 +1,43 @@
 models:
   mock_guard:
     enabled: true
-    description: "Lightweight CPU mock guard for local testing and pipeline validation."
-    mode: "perfect" # Options: "perfect", "context_blind", "always_allow", "always_block"
+    mode: "perfect"
+    description: "Lightweight CPU mock guard for local pipeline testing."
 
   rule_baseline:
     enabled: true
-    description: "Deterministic state-based rule engine baseline checking moodle_state facts."
+    description: "Deterministic state-based rule baseline checking moodle_state."
 
-  webguard:
-    enabled: false
-    checkpoint: null # e.g. "OSU-NLP/WebGuard-7B"
-    description: "WebGuard action consequence classifier model."
+  qwen_guard:
+    enabled: true
+    checkpoint: "Qwen/Qwen2.5-1.5B-Instruct"
+    load_in_4bit: false
+    description: "Qwen2.5 / Qwen3 open-source safety guard model (free HF)."
 
   llama_guard:
     enabled: false
-    checkpoint: null # e.g. "meta-llama/Llama-Guard-3-8B"
-    description: "Llama Guard safety model."
+    checkpoint: "meta-llama/Llama-Guard-3-1B"
+    load_in_4bit: false
+    description: "Llama Guard 3 open-source safety model (free HF)."
 
-  qwen_guard:
+  webguard:
     enabled: false
-    checkpoint: null # e.g. "Qwen/Qwen2.5-7B-Instruct"
-    description: "Qwen3Guard safety model."
+    checkpoint: "OSU-NLP/WebGuard-7B"
+    load_in_4bit: true
+    description: "WebGuard 7B action consequence classifier model (free HF)."
 
   dynaguard:
     enabled: false
-    checkpoint: null # e.g. "DynaGuard-8B"
-    description: "DynaGuard policy-following guard model."
+    checkpoint: "DynaGuard/DynaGuard-8B"
+    load_in_4bit: true
+    description: "DynaGuard 8B policy-following guard model (free HF)."
 
   policyguard:
     enabled: false
-    checkpoint: null # e.g. "PolicyGuard-4B"
-    description: "PolicyGuard 4B policy compliance model."
+    checkpoint: "PolicyGuard/PolicyGuard-4B"
+    load_in_4bit: false
+    description: "PolicyGuard 4B open-source policy compliance model (free HF)."
 
   large_model_judge:
     enabled: false
-    provider: "openai" # Options: "openai", "anthropic", "google"
-    model_name: "gpt-4o"
-    description: "API-based large language model evaluator."
+    description: "Disabled (Free open-source SLMs only)."
