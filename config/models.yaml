@@ -15,25 +15,25 @@ models:
     description: "Qwen2.5 / Qwen3 open-source safety guard model (free HF)."
 
   llama_guard:
-    enabled: false
+    enabled: true
     checkpoint: "meta-llama/Llama-Guard-3-1B"
     load_in_4bit: false
     description: "Llama Guard 3 open-source safety model (free HF)."
 
   webguard:
-    enabled: false
+    enabled: true
     checkpoint: "OSU-NLP/WebGuard-7B"
     load_in_4bit: true
     description: "WebGuard 7B action consequence classifier model (free HF)."
 
   dynaguard:
-    enabled: false
+    enabled: true
     checkpoint: "DynaGuard/DynaGuard-8B"
     load_in_4bit: true
     description: "DynaGuard 8B policy-following guard model (free HF)."
 
   policyguard:
-    enabled: false
+    enabled: true
     checkpoint: "PolicyGuard/PolicyGuard-4B"
     load_in_4bit: false
     description: "PolicyGuard 4B open-source policy compliance model (free HF)."
