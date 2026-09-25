@@ -68,10 +68,12 @@ class QwenGuardAdapter(GuardModel):
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
-                max_new_tokens=128,
+                max_new_tokens=48,
                 temperature=0.0,
-                do_sample=False
+                do_sample=False,
+                pad_token_id=self.tokenizer.eos_token_id
             )
+
 
         generated_tokens = outputs[0][inputs.input_ids.shape[1]:]
         raw_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
