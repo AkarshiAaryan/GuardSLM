@@ -1,0 +1,17 @@
+evaluation:
+  verdicts:
+    - ALLOW
+    - BLOCK
+    - ASK
+
+  batch_size: 1
+  temperature: 0
+  max_new_tokens: 256
+
+paths:
+  schema: schemas/test_case_schema.json
+  dummy_cases: data/dummy/dummy_cases.json
+  pilot_cases: data/pilot/pilot_cases.json
+  results: data/results
+  reports: reports
+  prompts: prompts

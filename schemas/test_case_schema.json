@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TestCaseDataset",
+  "type": "object",
+  "required": ["dataset_name", "cases"],
+  "properties": {
+    "dataset_name": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "source": { "type": "string" },
+    "templates": { "type": "object" },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "pair_id",
+          "template_id",
+          "user",
+          "request",
+          "context",
+          "proposed_action",
+          "gold"
+        ],
+        "properties": {
+          "case_id": { "type": "string" },
+          "pair_id": { "type": "string" },
+          "template_id": { "type": "string" },
+          "template_name": { "type": "string" },
+          "user": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {
+              "role": { "type": ["string", "boolean"] }
+            }
+          },
+          "request": { "type": "string" },
+          "context": {
+            "type": "object",
+            "required": ["page_context", "policy"],
+            "properties": {
+              "page_context": {
+                "type": "object",
+                "required": ["page_title", "accessibility_tree"],
+                "properties": {
+                  "page_title": { "type": "string" },
+                  "accessibility_tree": { "type": "string" }
+                }
+              },
+              "moodle_state": { "type": "object" },
+              "policy": { "type": "string" }
+            }
+          },
+          "proposed_action": {
+            "type": "object",
+            "required": ["element"],
+            "properties": {
+              "tool": { "type": "string" },
+              "type": { "type": "string" },
+              "target": { "type": "string" },
+              "element": { "type": "string" },
+              "ref": { "type": "string" }
+            }
+          },
+          "gold": {
+            "type": "object",
+            "required": ["verdict"],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": ["ALLOW", "BLOCK", "ASK"]
+              },
+              "reason": { "type": "string" }
+            }
+          },
+          "metadata": { "type": "object" }
+        }
+      }
+    }
+  }
+}

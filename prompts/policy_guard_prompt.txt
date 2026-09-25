@@ -1,0 +1,13 @@
+Evaluate policy compliance for the given action:
+
+POLICY:
+{policy}
+
+CONTEXT & ACTION:
+Role: {user_role}
+Request: {request}
+Action: {proposed_action}
+State: {moodle_state}
+
+VERDICT: (ALLOW, BLOCK, or ASK)
+EXPLANATION:

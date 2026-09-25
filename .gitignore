@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+
+# Data Results & Logs
+data/results/*
+!data/results/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# Secrets
+.env
+*.pem
+*.key

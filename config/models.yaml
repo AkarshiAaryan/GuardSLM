@@ -1,0 +1,40 @@
+models:
+  mock_guard:
+    enabled: true
+    description: "Lightweight CPU mock guard for local testing and pipeline validation."
+    mode: "perfect" # Options: "perfect", "context_blind", "always_allow", "always_block"
+
+  rule_baseline:
+    enabled: true
+    description: "Deterministic state-based rule engine baseline checking moodle_state facts."
+
+  webguard:
+    enabled: false
+    checkpoint: null # e.g. "OSU-NLP/WebGuard-7B"
+    description: "WebGuard action consequence classifier model."
+
+  llama_guard:
+    enabled: false
+    checkpoint: null # e.g. "meta-llama/Llama-Guard-3-8B"
+    description: "Llama Guard safety model."
+
+  qwen_guard:
+    enabled: false
+    checkpoint: null # e.g. "Qwen/Qwen2.5-7B-Instruct"
+    description: "Qwen3Guard safety model."
+
+  dynaguard:
+    enabled: false
+    checkpoint: null # e.g. "DynaGuard-8B"
+    description: "DynaGuard policy-following guard model."
+
+  policyguard:
+    enabled: false
+    checkpoint: null # e.g. "PolicyGuard-4B"
+    description: "PolicyGuard 4B policy compliance model."
+
+  large_model_judge:
+    enabled: false
+    provider: "openai" # Options: "openai", "anthropic", "google"
+    model_name: "gpt-4o"
+    description: "API-based large language model evaluator."
