@@ -8,7 +8,7 @@ from ..utils.logging import setup_logger
 logger = setup_logger("LlamaGuardAdapter")
 
 class LlamaGuardAdapter(GuardModel):
-    """Adapter for Llama Guard open-source safety models."""
+    """Adapter for Llama Guard open-source safety models (gated on Hugging Face)."""
 
     def __init__(self, name: str = "llama_guard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
@@ -21,8 +21,7 @@ class LlamaGuardAdapter(GuardModel):
     def load(self) -> None:
         if not self.config.get("enabled", False) or not self.checkpoint:
             raise NotImplementedError(
-                f"Llama Guard adapter is disabled or missing checkpoint in config/models.yaml.\n"
-                f"Set enabled: true and checkpoint: 'meta-llama/Llama-Guard-3-1B' (or 'meta-llama/Llama-Guard-3-8B')."
+                f"Llama Guard adapter is disabled in config/models.yaml."
             )
 
         logger.info(f"Loading Llama Guard checkpoint: {self.checkpoint}...")
@@ -43,7 +42,6 @@ class LlamaGuardAdapter(GuardModel):
                             bnb_4bit_compute_dtype=torch.float16
                         )
                     except Exception as q_err:
-                        logger.warning(f"BitsAndBytes 4-bit quantization unavailable, falling back to float16: {q_err}")
                         kwargs["torch_dtype"] = torch.float16
                 else:
                     kwargs["torch_dtype"] = torch.float16
@@ -53,7 +51,14 @@ class LlamaGuardAdapter(GuardModel):
             self.model = AutoModelForCausalLM.from_pretrained(self.checkpoint, **kwargs)
             logger.info(f"Successfully loaded {self.checkpoint}!")
         except Exception as e:
-            logger.error(f"Failed loading Llama Guard model '{self.checkpoint}': {e}")
+            err_msg = str(e)
+            if "gated repo" in err_msg or "401" in err_msg or "restricted" in err_msg:
+                logger.warning(
+                    f"\n[GATED REPOSITORY NOTE]: '{self.checkpoint}' is gated by Meta on Hugging Face.\n"
+                    f"To evaluate Llama Guard:\n"
+                    f"1. Accept terms at: https://huggingface.co/{self.checkpoint}\n"
+                    f"2. Log in in Colab using: huggingface_hub.login(token='hf_YOUR_TOKEN')\n"
+                )
             raise RuntimeError(f"Model load error: {e}")
 
     def predict(self, case: TestCase) -> GuardPrediction:
@@ -73,7 +78,6 @@ class LlamaGuardAdapter(GuardModel):
                 do_sample=False,
                 pad_token_id=self.tokenizer.eos_token_id
             )
-
 
         generated_tokens = outputs[0][inputs.input_ids.shape[1]:]
         raw_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)

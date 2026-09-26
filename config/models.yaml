@@ -6,37 +6,37 @@ models:
 
   rule_baseline:
     enabled: true
-    description: "Deterministic state-based rule baseline checking moodle_state."
+    description: "Deterministic state-based rule baseline checking moodle_state (100% oracle baseline)."
 
-  qwen_guard:
+  qwen_1_5b:
     enabled: true
     checkpoint: "Qwen/Qwen2.5-1.5B-Instruct"
     load_in_4bit: false
-    description: "Qwen2.5 / Qwen3 open-source safety guard model (free HF)."
+    description: "Qwen 2.5 1.5B Instruct (Public, Ungated, Free HF)."
+
+  qwen_7b:
+    enabled: true
+    checkpoint: "Qwen/Qwen2.5-7B-Instruct"
+    load_in_4bit: true
+    description: "Qwen 2.5 7B Instruct (Public, Ungated, Free HF, 4-bit)."
+
+  qwen_3b:
+    enabled: true
+    checkpoint: "Qwen/Qwen2.5-3B-Instruct"
+    load_in_4bit: false
+    description: "Qwen 2.5 3B Instruct (Public, Ungated, Free HF)."
+
+  qwen_0_5b:
+    enabled: true
+    checkpoint: "Qwen/Qwen2.5-0.5B-Instruct"
+    load_in_4bit: false
+    description: "Qwen 2.5 0.5B Instruct (Public, Ungated, Free HF, Ultra-fast SLM)."
 
   llama_guard:
-    enabled: true
+    enabled: false
     checkpoint: "meta-llama/Llama-Guard-3-1B"
     load_in_4bit: false
-    description: "Llama Guard 3 open-source safety model (free HF)."
-
-  webguard:
-    enabled: true
-    checkpoint: "OSU-NLP/WebGuard-7B"
-    load_in_4bit: true
-    description: "WebGuard 7B action consequence classifier model (free HF)."
-
-  dynaguard:
-    enabled: true
-    checkpoint: "DynaGuard/DynaGuard-8B"
-    load_in_4bit: true
-    description: "DynaGuard 8B policy-following guard model (free HF)."
-
-  policyguard:
-    enabled: true
-    checkpoint: "PolicyGuard/PolicyGuard-4B"
-    load_in_4bit: false
-    description: "PolicyGuard 4B open-source policy compliance model (free HF)."
+    description: "Llama Guard 3 1B (Meta Gated: requires free HF token login)."
 
   large_model_judge:
     enabled: false
