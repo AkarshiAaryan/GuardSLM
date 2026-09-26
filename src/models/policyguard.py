@@ -15,6 +15,7 @@ class PolicyGuardAdapter(GuardModel):
         self.checkpoint = self.config.get("checkpoint", "PolicyGuard/PolicyGuard-4B")
         self.prompt_template = self.config.get("prompt_template", "prompts/policy_guard_prompt.txt")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
+        self.hf_token = self.config.get("hf_token", None)
         self.tokenizer = None
         self.model = None
 
@@ -29,10 +30,21 @@ class PolicyGuardAdapter(GuardModel):
         try:
             import torch
             from transformers import AutoTokenizer, AutoModelForCausalLM
+            from huggingface_hub import login
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint, trust_remote_code=True)
+            if self.hf_token:
+                login(token=self.hf_token)
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.checkpoint,
+                trust_remote_code=True,
+                token=self.hf_token
+            )
             
-            kwargs = {"trust_remote_code": True}
+            kwargs = {
+                "trust_remote_code": True,
+                "token": self.hf_token
+            }
             if torch.cuda.is_available():
                 kwargs["device_map"] = "auto"
                 if self.load_in_4bit:
@@ -53,7 +65,14 @@ class PolicyGuardAdapter(GuardModel):
             self.model = AutoModelForCausalLM.from_pretrained(self.checkpoint, **kwargs)
             logger.info(f"Successfully loaded {self.checkpoint}!")
         except Exception as e:
-            logger.error(f"Failed loading PolicyGuard model '{self.checkpoint}': {e}")
+            err_msg = str(e)
+            if "gated repo" in err_msg or "401" in err_msg or "restricted" in err_msg:
+                logger.error(
+                    f"\n[GATED REPOSITORY INSTRUCTIONS]:\n"
+                    f"1. Accept license terms at: https://huggingface.co/{self.checkpoint}\n"
+                    f"2. Get free token at: https://huggingface.co/settings/tokens\n"
+                    f"3. Login in Colab via: huggingface_hub.login(token='hf_YOUR_TOKEN')\n"
+                )
             raise RuntimeError(f"Model load error: {e}")
 
     def predict(self, case: TestCase) -> GuardPrediction:

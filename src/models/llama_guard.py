@@ -8,13 +8,14 @@ from ..utils.logging import setup_logger
 logger = setup_logger("LlamaGuardAdapter")
 
 class LlamaGuardAdapter(GuardModel):
-    """Adapter for Llama Guard open-source safety models (gated on Hugging Face)."""
+    """Adapter for Llama Guard 3 open-source safety models."""
 
     def __init__(self, name: str = "llama_guard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
         self.checkpoint = self.config.get("checkpoint", "meta-llama/Llama-Guard-3-1B")
         self.prompt_template = self.config.get("prompt_template", "prompts/base_guard_prompt.txt")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
+        self.hf_token = self.config.get("hf_token", None)
         self.tokenizer = None
         self.model = None
 
@@ -28,10 +29,21 @@ class LlamaGuardAdapter(GuardModel):
         try:
             import torch
             from transformers import AutoTokenizer, AutoModelForCausalLM
+            from huggingface_hub import login
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint, trust_remote_code=True)
+            if self.hf_token:
+                login(token=self.hf_token)
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.checkpoint,
+                trust_remote_code=True,
+                token=self.hf_token
+            )
             
-            kwargs = {"trust_remote_code": True}
+            kwargs = {
+                "trust_remote_code": True,
+                "token": self.hf_token
+            }
             if torch.cuda.is_available():
                 kwargs["device_map"] = "auto"
                 if self.load_in_4bit:
@@ -53,11 +65,11 @@ class LlamaGuardAdapter(GuardModel):
         except Exception as e:
             err_msg = str(e)
             if "gated repo" in err_msg or "401" in err_msg or "restricted" in err_msg:
-                logger.warning(
-                    f"\n[GATED REPOSITORY NOTE]: '{self.checkpoint}' is gated by Meta on Hugging Face.\n"
-                    f"To evaluate Llama Guard:\n"
-                    f"1. Accept terms at: https://huggingface.co/{self.checkpoint}\n"
-                    f"2. Log in in Colab using: huggingface_hub.login(token='hf_YOUR_TOKEN')\n"
+                logger.error(
+                    f"\n[GATED REPOSITORY INSTRUCTIONS]:\n"
+                    f"1. Go to: https://huggingface.co/{self.checkpoint} and click 'Accept License'.\n"
+                    f"2. Get your free token at: https://huggingface.co/settings/tokens\n"
+                    f"3. In Colab run: huggingface_hub.login(token='hf_YOUR_TOKEN')\n"
                 )
             raise RuntimeError(f"Model load error: {e}")
 

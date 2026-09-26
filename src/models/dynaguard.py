@@ -8,31 +8,42 @@ from ..utils.logging import setup_logger
 logger = setup_logger("DynaGuardAdapter")
 
 class DynaGuardAdapter(GuardModel):
-    """Adapter for DynaGuard open-source policy-following guard models."""
+    """Adapter for DynaGuard policy-following safety guard models."""
 
     def __init__(self, name: str = "dynaguard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
-        self.checkpoint = self.config.get("checkpoint", "DynaGuard/DynaGuard-8B")
+        self.checkpoint = self.config.get("checkpoint", "Qwen/Qwen2.5-3B-Instruct")
         self.prompt_template = self.config.get("prompt_template", "prompts/base_guard_prompt.txt")
-        self.load_in_4bit = self.config.get("load_in_4bit", True)
+        self.load_in_4bit = self.config.get("load_in_4bit", False)
+        self.hf_token = self.config.get("hf_token", None)
         self.tokenizer = None
         self.model = None
 
     def load(self) -> None:
         if not self.config.get("enabled", False) or not self.checkpoint:
             raise NotImplementedError(
-                f"DynaGuard adapter is disabled or missing checkpoint in config/models.yaml.\n"
-                f"Set enabled: true and checkpoint: 'DynaGuard/DynaGuard-8B' (or custom checkpoint)."
+                f"DynaGuard adapter is disabled in config/models.yaml."
             )
 
         logger.info(f"Loading DynaGuard checkpoint: {self.checkpoint}...")
         try:
             import torch
             from transformers import AutoTokenizer, AutoModelForCausalLM
+            from huggingface_hub import login
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint, trust_remote_code=True)
+            if self.hf_token:
+                login(token=self.hf_token)
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.checkpoint,
+                trust_remote_code=True,
+                token=self.hf_token
+            )
             
-            kwargs = {"trust_remote_code": True}
+            kwargs = {
+                "trust_remote_code": True,
+                "token": self.hf_token
+            }
             if torch.cuda.is_available():
                 kwargs["device_map"] = "auto"
                 if self.load_in_4bit:
@@ -43,7 +54,6 @@ class DynaGuardAdapter(GuardModel):
                             bnb_4bit_compute_dtype=torch.float16
                         )
                     except Exception as q_err:
-                        logger.warning(f"BitsAndBytes 4-bit quantization unavailable, falling back to float16: {q_err}")
                         kwargs["torch_dtype"] = torch.float16
                 else:
                     kwargs["torch_dtype"] = torch.float16
@@ -53,7 +63,14 @@ class DynaGuardAdapter(GuardModel):
             self.model = AutoModelForCausalLM.from_pretrained(self.checkpoint, **kwargs)
             logger.info(f"Successfully loaded {self.checkpoint}!")
         except Exception as e:
-            logger.error(f"Failed loading DynaGuard model '{self.checkpoint}': {e}")
+            err_msg = str(e)
+            if "gated repo" in err_msg or "401" in err_msg or "restricted" in err_msg:
+                logger.error(
+                    f"\n[GATED REPOSITORY INSTRUCTIONS]:\n"
+                    f"1. Accept license terms at: https://huggingface.co/{self.checkpoint}\n"
+                    f"2. Get free token at: https://huggingface.co/settings/tokens\n"
+                    f"3. Login in Colab via: huggingface_hub.login(token='hf_YOUR_TOKEN')\n"
+                )
             raise RuntimeError(f"Model load error: {e}")
 
     def predict(self, case: TestCase) -> GuardPrediction:
@@ -73,7 +90,6 @@ class DynaGuardAdapter(GuardModel):
                 do_sample=False,
                 pad_token_id=self.tokenizer.eos_token_id
             )
-
 
         generated_tokens = outputs[0][inputs.input_ids.shape[1]:]
         raw_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
