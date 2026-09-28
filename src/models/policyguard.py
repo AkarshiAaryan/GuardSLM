@@ -12,7 +12,7 @@ class PolicyGuardAdapter(GuardModel):
 
     def __init__(self, name: str = "policyguard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
-        self.checkpoint = self.config.get("checkpoint", "PolicyGuard/PolicyGuard-4B")
+        self.checkpoint = self.config.get("checkpoint", "Qwen/Qwen2.5-1.5B-Instruct")
         self.prompt_template = self.config.get("prompt_template", "prompts/policy_guard_prompt.txt")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.hf_token = self.config.get("hf_token", None)
