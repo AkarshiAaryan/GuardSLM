@@ -12,7 +12,7 @@ class DynaGuardAdapter(GuardModel):
 
     def __init__(self, name: str = "dynaguard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
-        self.checkpoint = self.config.get("checkpoint", "Qwen/Qwen2.5-3B-Instruct")
+        self.checkpoint = self.config.get("checkpoint", "google/gemma-2-2b-it")
         self.prompt_template = self.config.get("prompt_template", "prompts/base_guard_prompt.txt")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.hf_token = self.config.get("hf_token", None)
