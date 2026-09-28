@@ -105,6 +105,29 @@ class LlamaGuardAdapter(GuardModel):
             reason=raw_text.strip()
         )
 
+    def parse_verdict(self, raw_text: str) -> tuple[str, str]:
+        """Custom parser for Llama Guard output formatting (safe/unsafe -> ALLOW/BLOCK)."""
+        text_upper = raw_text.strip().upper()
+
+        if "VERDICT:" in text_upper:
+            parts = text_upper.split("VERDICT:")
+            verdict_part = parts[1].strip().split()[0]
+            if verdict_part in ["ALLOW", "SAFE"]:
+                return "ALLOW", "success"
+            elif verdict_part in ["BLOCK", "UNSAFE"]:
+                return "BLOCK", "success"
+            elif verdict_part == "ASK":
+                return "ASK", "success"
+
+        if "UNSAFE" in text_upper or "BLOCK" in text_upper:
+            return "BLOCK", "success"
+        elif "SAFE" in text_upper or "ALLOW" in text_upper:
+            return "ALLOW", "success"
+        elif "ASK" in text_upper:
+            return "ASK", "success"
+
+        return "UNKNOWN", "failed"
+
     def unload(self) -> None:
         self.model = None
         self.tokenizer = None
