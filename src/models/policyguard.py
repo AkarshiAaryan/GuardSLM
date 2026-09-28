@@ -12,7 +12,7 @@ class PolicyGuardAdapter(GuardModel):
 
     def __init__(self, name: str = "policyguard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
-        self.checkpoint = self.config.get("checkpoint", "google/gemma-2-2b-it")
+        self.checkpoint = self.config.get("checkpoint", "Rakancorle1/PolicyGuard-4B")
         self.prompt_template = self.config.get("prompt_template", "prompts/policy_guard_prompt.txt")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.hf_token = self.config.get("hf_token", None)
@@ -23,7 +23,7 @@ class PolicyGuardAdapter(GuardModel):
         if not self.config.get("enabled", False) or not self.checkpoint:
             raise NotImplementedError(
                 f"PolicyGuard adapter is disabled or missing checkpoint in config/models.yaml.\n"
-                f"Set enabled: true and checkpoint: 'PolicyGuard/PolicyGuard-4B' (or custom checkpoint)."
+                f"Set enabled: true and checkpoint: 'Rakancorle1/PolicyGuard-4B'."
             )
 
         logger.info(f"Loading PolicyGuard checkpoint: {self.checkpoint}...")
@@ -83,7 +83,18 @@ class PolicyGuardAdapter(GuardModel):
         prompt_text = render_prompt(self.prompt_template, case)
 
         import torch
-        inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.model.device)
+        messages = [{"role": "user", "content": prompt_text}]
+        if hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None) is not None:
+            try:
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            except Exception:
+                formatted_prompt = prompt_text
+        else:
+            formatted_prompt = prompt_text
+
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -92,7 +103,6 @@ class PolicyGuardAdapter(GuardModel):
                 do_sample=False,
                 pad_token_id=self.tokenizer.eos_token_id
             )
-
 
         generated_tokens = outputs[0][inputs.input_ids.shape[1]:]
         raw_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
@@ -107,6 +117,21 @@ class PolicyGuardAdapter(GuardModel):
             parse_status=parse_status,
             reason=raw_text.strip()
         )
+
+    def parse_verdict(self, raw_text: str) -> tuple[str, str]:
+        """Custom parser for PolicyGuard output (no_violation -> ALLOW, violation -> BLOCK)."""
+        text_lower = raw_text.strip().lower()
+
+        if "no_violation" in text_lower or "no violation" in text_lower:
+            return "ALLOW", "success"
+        elif "violation" in text_lower:
+            return "BLOCK", "success"
+        elif "allow" in text_lower or "safe" in text_lower:
+            return "ALLOW", "success"
+        elif "block" in text_lower or "unsafe" in text_lower:
+            return "BLOCK", "success"
+
+        return "UNKNOWN", "failed"
 
     def unload(self) -> None:
         self.model = None

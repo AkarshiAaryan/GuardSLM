@@ -12,7 +12,7 @@ class DynaGuardAdapter(GuardModel):
 
     def __init__(self, name: str = "dynaguard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
-        self.checkpoint = self.config.get("checkpoint", "google/gemma-2-2b-it")
+        self.checkpoint = self.config.get("checkpoint", "tomg-group-umd/DynaGuard-1.7B")
         self.prompt_template = self.config.get("prompt_template", "prompts/base_guard_prompt.txt")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.hf_token = self.config.get("hf_token", None)
@@ -81,7 +81,18 @@ class DynaGuardAdapter(GuardModel):
         prompt_text = render_prompt(self.prompt_template, case)
 
         import torch
-        inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.model.device)
+        messages = [{"role": "user", "content": prompt_text}]
+        if hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None) is not None:
+            try:
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            except Exception:
+                formatted_prompt = prompt_text
+        else:
+            formatted_prompt = prompt_text
+
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -104,6 +115,19 @@ class DynaGuardAdapter(GuardModel):
             parse_status=parse_status,
             reason=raw_text.strip()
         )
+
+    def parse_verdict(self, raw_text: str) -> tuple[str, str]:
+        """Custom parser for DynaGuard output (PASS -> ALLOW, FAIL -> BLOCK)."""
+        text_upper = raw_text.strip().upper()
+
+        if "PASS" in text_upper or "ALLOW" in text_upper or "SAFE" in text_upper:
+            return "ALLOW", "success"
+        elif "FAIL" in text_upper or "BLOCK" in text_upper or "UNSAFE" in text_upper:
+            return "BLOCK", "success"
+        elif "ASK" in text_upper:
+            return "ASK", "success"
+
+        return "UNKNOWN", "failed"
 
     def unload(self) -> None:
         self.model = None

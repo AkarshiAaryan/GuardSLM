@@ -64,7 +64,18 @@ class QwenGuardAdapter(GuardModel):
         prompt_text = render_prompt(self.prompt_template, case)
 
         import torch
-        inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.model.device)
+        messages = [{"role": "user", "content": prompt_text}]
+        if hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None) is not None:
+            try:
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            except Exception:
+                formatted_prompt = prompt_text
+        else:
+            formatted_prompt = prompt_text
+
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
