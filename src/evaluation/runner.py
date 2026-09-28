@@ -52,6 +52,14 @@ def run_evaluation_for_model(model: GuardModel, cases: List[TestCase]) -> List[C
             results.append(res)
     finally:
         model.unload()
-        logger.info(f"Unloaded model '{model.name}'. Completed {len(results)} predictions.")
+        # Clean Hugging Face disk cache to prevent disk exhaustion in Colab environment
+        try:
+            import shutil, os
+            cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
+            if os.path.exists(cache_dir):
+                shutil.rmtree(cache_dir, ignore_errors=True)
+        except Exception:
+            pass
+        logger.info(f"Unloaded model '{model.name}' and cleared disk cache. Completed {len(results)} predictions.")
 
     return results
