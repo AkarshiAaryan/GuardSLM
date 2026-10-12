@@ -17,6 +17,7 @@ class CaseResult:
     timestamp: str
     error: Optional[str] = None
     template_name: str = ""
+    native_output: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -34,7 +35,8 @@ class CaseResult:
         latency_ms: float,
         parse_status: str,
         error: Optional[str] = None,
-        template_name: str = ""
+        template_name: str = "",
+        native_output: Optional[str] = None
     ) -> "CaseResult":
         correct = (gold_verdict.upper() == predicted_verdict.upper()) and (parse_status == "success")
         return cls(
@@ -50,5 +52,6 @@ class CaseResult:
             parse_status=parse_status,
             timestamp=datetime.now().isoformat(),
             error=error,
-            template_name=template_name
+            template_name=template_name,
+            native_output=native_output
         )

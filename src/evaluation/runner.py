@@ -32,7 +32,8 @@ def run_evaluation_for_model(model: GuardModel, cases: List[TestCase]) -> List[C
                     latency_ms=pred.latency_ms,
                     parse_status=pred.parse_status,
                     error=pred.error,
-                    template_name=case.template_name
+                    template_name=case.template_name,
+                    native_output=pred.native_output
                 )
             except Exception as e:
                 logger.error(f"Error predicting case {case.case_id} with model '{model.name}': {e}")

@@ -97,7 +97,8 @@ class QwenGuardAdapter(GuardModel):
             raw_response=raw_text,
             latency_ms=round(latency_ms, 2),
             parse_status=parse_status,
-            reason=raw_text.strip()
+            reason=raw_text.strip(),
+            native_output=verdict
         )
 
     def unload(self) -> None:

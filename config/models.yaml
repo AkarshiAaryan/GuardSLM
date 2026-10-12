@@ -35,6 +35,12 @@ models:
     load_in_4bit: false
     description: "WebGuard Fine-Tuned (Qwen2.5-3B + WebGuard a11y LoRA)."
 
+  policyguard:
+    enabled: true
+    checkpoint: "Rakancorle1/PolicyGuard-4B"
+    load_in_4bit: false
+    description: "PolicyGuard-4B Strategy A (UC Davis / Uniphore, Apache-2.0)."
+
   large_model_judge:
     enabled: false
     description: "Disabled (Free open-source SLMs only)."

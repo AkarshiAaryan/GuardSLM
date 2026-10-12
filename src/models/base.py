@@ -12,6 +12,7 @@ class GuardPrediction:
     parse_status: str  # success, failed
     reason: str = ""
     error: Optional[str] = None
+    native_output: Optional[str] = None
 
 class GuardModel(ABC):
     name: str

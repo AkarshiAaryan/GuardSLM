@@ -119,7 +119,8 @@ class WebGuardFineTunedAdapter(GuardModel):
             raw_response=raw_text,
             latency_ms=round(latency_ms, 2),
             parse_status=parse_status,
-            reason=f"WebGuard Predicted Risk: {risky_level} | Raw: {raw_text.strip()}"
+            reason=f"Stage 1 Native Risk: {risky_level} -> Stage 2 GuardSLM: {verdict}",
+            native_output=risky_level
         )
 
     def unload(self) -> None:
