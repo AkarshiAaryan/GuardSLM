@@ -4,9 +4,11 @@ models:
     mode: "perfect"
     description: "Lightweight CPU mock guard for local pipeline testing."
 
-  rule_baseline:
+  qwen_0_5b:
     enabled: true
-    description: "Deterministic state-based rule baseline checking moodle_state (100% oracle baseline)."
+    checkpoint: "Qwen/Qwen2.5-0.5B-Instruct"
+    load_in_4bit: false
+    description: "Qwen 2.5 0.5B Instruct (Public, Ungated, Free HF, Ultra-fast SLM)."
 
   qwen_1_5b:
     enabled: true
@@ -14,47 +16,17 @@ models:
     load_in_4bit: false
     description: "Qwen 2.5 1.5B Instruct (Public, Ungated, Free HF)."
 
-  qwen_7b:
-    enabled: true
-    checkpoint: "Qwen/Qwen2.5-7B-Instruct"
-    load_in_4bit: true
-    description: "Qwen 2.5 7B Instruct (Public, Ungated, Free HF, 4-bit)."
-
   qwen_3b:
     enabled: true
     checkpoint: "Qwen/Qwen2.5-3B-Instruct"
     load_in_4bit: false
     description: "Qwen 2.5 3B Instruct (Public, Ungated, Free HF)."
 
-  qwen_0_5b:
+  qwen_7b:
     enabled: true
-    checkpoint: "Qwen/Qwen2.5-0.5B-Instruct"
-    load_in_4bit: false
-    description: "Qwen 2.5 0.5B Instruct (Public, Ungated, Free HF, Ultra-fast SLM)."
-
-  llama_guard:
-    enabled: true
-    checkpoint: "meta-llama/Llama-Guard-3-1B"
-    load_in_4bit: false
-    description: "Llama Guard 3 1B (Meta Gated: requires free HF token login)."
-
-  policyguard:
-    enabled: true
-    checkpoint: "Rakancorle1/PolicyGuard-4B"
-    load_in_4bit: false
-    description: "PolicyGuard-4B (UC Davis / Uniphore, Apache-2.0)."
-
-  dynaguard:
-    enabled: true
-    checkpoint: "tomg-group-umd/DynaGuard-1.7B"
-    load_in_4bit: false
-    description: "DynaGuard-1.7B (UMD / Capital One, Apache-2.0)."
-
-  webguard:
-    enabled: true
-    checkpoint: "google/gemma-2-2b-it"
-    load_in_4bit: false
-    description: "WebGuard Consequence Prompt Baseline (Gemma-2-2B-it)."
+    checkpoint: "Qwen/Qwen2.5-7B-Instruct"
+    load_in_4bit: true
+    description: "Qwen 2.5 7B Instruct (Public, Ungated, Free HF, 4-bit)."
 
   large_model_judge:
     enabled: false
