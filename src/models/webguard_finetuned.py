@@ -16,6 +16,9 @@ class WebGuardFineTunedAdapter(GuardModel):
         self.checkpoint = self.config.get("checkpoint", "Qwen/Qwen2.5-3B-Instruct")
         self.adapter_path = self.config.get("adapter_path", "models/webguard_qwen_lora")
         self.load_in_4bit = self.config.get("load_in_4bit", False)
+        # augmented: False -> Original unaugmented WebGuard input (baseline)
+        # augmented: True  -> Context-augmented WebGuard input (with policy & state)
+        self.augmented = self.config.get("augmented", False)
         self.tokenizer = None
         self.model = None
 
@@ -82,12 +85,17 @@ class WebGuardFineTunedAdapter(GuardModel):
         proposed_action = f"{case.proposed_action.type} {case.proposed_action.element}".strip()
         page_title = getattr(case.context.page_context, "page_title", "Moodle")
 
+        policy = case.context.policy if self.augmented else None
+        moodle_state = case.context.moodle_state if self.augmented else None
+
         messages = format_webguard_messages(
             accessibility_tree=a11y_tree,
             proposed_action=proposed_action,
             description=case.request or "nan",
             tag_head="button",
-            url=f"https://moodle.university.edu/{page_title}"
+            url=f"https://moodle.university.edu/{page_title}",
+            policy=policy,
+            moodle_state=moodle_state
         )
 
         import torch

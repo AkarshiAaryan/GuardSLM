@@ -50,14 +50,30 @@ def format_webguard_user_content(
     proposed_action: str,
     description: str = "nan",
     tag_head: str = "button",
-    url: str = "https://moodle.university.edu"
+    url: str = "https://moodle.university.edu",
+    policy: str = None,
+    moodle_state: Any = None
 ) -> str:
-    """Formats a web interaction into WebGuard's exact input format."""
+    """Formats a web interaction into WebGuard's input format.
+    
+    If policy or moodle_state are provided, includes them as institutional context
+    grounding (Augmented mode). Otherwise, retains original unaugmented WebGuard format.
+    """
+    context_lines = []
+    if policy:
+        context_lines.append(f"The institutional policy governing this action is: {policy}")
+    if moodle_state is not None:
+        state_str = json.dumps(moodle_state) if isinstance(moodle_state, (dict, list)) else str(moodle_state)
+        context_lines.append(f"The institutional platform state is: {state_str}")
+        
+    context_block = ("\n" + "\n".join(context_lines)) if context_lines else ""
+
     content = (
         f"{WEBGARD_SYSTEM_PROMPT}\n"
         f"The description of the element is {description}.\n"
         f"The tagHead of the element is {tag_head}.\n"
-        f"The url of the web page is {url}.\n"
+        f"The url of the web page is {url}."
+        f"{context_block}\n"
         f"The accessibility tree of the web page is {accessibility_tree}\n"
         f"The proposed action is {proposed_action}."
     )
@@ -68,15 +84,19 @@ def format_webguard_messages(
     proposed_action: str,
     description: str = "nan",
     tag_head: str = "button",
-    url: str = "https://moodle.university.edu"
+    url: str = "https://moodle.university.edu",
+    policy: str = None,
+    moodle_state: Any = None
 ) -> list:
-    """Returns standard chat messages for WebGuard."""
+    """Returns standard chat messages for WebGuard (unaugmented or augmented)."""
     user_content = format_webguard_user_content(
         accessibility_tree=accessibility_tree,
         proposed_action=proposed_action,
         description=description,
         tag_head=tag_head,
-        url=url
+        url=url,
+        policy=policy,
+        moodle_state=moodle_state
     )
     return [
         {"role": "user", "content": user_content}
