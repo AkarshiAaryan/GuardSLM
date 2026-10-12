@@ -28,6 +28,13 @@ models:
     load_in_4bit: true
     description: "Qwen 2.5 7B Instruct (Public, Ungated, Free HF, 4-bit)."
 
+  webguard_finetuned:
+    enabled: true
+    checkpoint: "Qwen/Qwen2.5-3B-Instruct"
+    adapter_path: "models/webguard_qwen_lora"
+    load_in_4bit: false
+    description: "WebGuard Fine-Tuned (Qwen2.5-3B + WebGuard a11y LoRA)."
+
   large_model_judge:
     enabled: false
     description: "Disabled (Free open-source SLMs only)."

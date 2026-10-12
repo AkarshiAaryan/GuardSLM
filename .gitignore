@@ -9,9 +9,13 @@ venv/
 env/
 ENV/
 
-# Data Results & Logs
+# Data Results, Downloads & Logs
 data/results/*
 !data/results/.gitkeep
+data/webguard/*
+!data/webguard/.gitkeep
+models/*
+!models/.gitkeep
 reports/*
 !reports/.gitkeep
 
