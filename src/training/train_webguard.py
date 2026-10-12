@@ -33,6 +33,7 @@ def load_webguard_dataset(data_path: str, max_samples: int = None):
     return data
 
 def train(args):
+    import torch
     from transformers import (
         AutoTokenizer,
         AutoModelForCausalLM,
