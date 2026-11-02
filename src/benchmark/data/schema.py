@@ -1,4 +1,4 @@
-"""GuardSLM 100-Pair Benchmark Data Schema Definitions."""
+"""GuardSLM v3 Benchmark Data Schema Definitions (Strict Separation of Public Inputs and Golds)."""
 
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, List, Optional, Union
@@ -7,22 +7,22 @@ from typing import Dict, Any, List, Optional, Union
 @dataclass
 class PolicyClause:
     policy_id: str
-    name: str
-    category: str
     statement: str
-    rationale: str
-    moodle_capability_or_fixture_fact: str
-    enforcement_level: str
+    name: str = ""
+    category: str = ""
+    rationale: str = ""
+    moodle_capability_or_fixture_fact: str = ""
+    enforcement_level: str = "mandatory"
     source_pdf_pages_cited: List[str] = field(default_factory=list)
     raw_dict: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "PolicyClause":
         return cls(
-            policy_id=d["policy_id"],
-            name=d.get("name", ""),
+            policy_id=d.get("policy_id", ""),
+            name=d.get("name", d.get("title", "")),
             category=d.get("category", ""),
-            statement=d.get("statement", ""),
+            statement=d.get("statement", d.get("policy_text", "")),
             rationale=d.get("rationale", ""),
             moodle_capability_or_fixture_fact=d.get("moodle_capability_or_fixture_fact", ""),
             enforcement_level=d.get("enforcement_level", "mandatory"),
@@ -34,93 +34,6 @@ class PolicyClause:
         if self.raw_dict:
             return self.raw_dict
         return asdict(self)
-
-
-@dataclass
-class ScreenshotMapping:
-    pdf_id: str
-    source_pdf_filename: str
-    page_number_1_indexed: int
-    page_id: str
-    page_type: str = ""
-    course_context_from_inventory: str = ""
-    visible_controls_from_inventory: str = ""
-    data_pii_visible_from_inventory: str = ""
-    privacy_redaction_required_before_external_model_call: bool = False
-    evidence_class: str = ""
-    inventory_caveat: str = ""
-    mapping_relation: str = "primary_action_ui"
-    screenshot_attachment_key: str = ""
-    image_status: str = "embedded_in_original_pdf_not_extracted"
-    external_image_run_instruction: str = ""
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "ScreenshotMapping":
-        return cls(
-            pdf_id=d["pdf_id"],
-            source_pdf_filename=d["source_pdf_filename"],
-            page_number_1_indexed=int(d["page_number_1_indexed"]),
-            page_id=d["page_id"],
-            page_type=d.get("page_type", ""),
-            course_context_from_inventory=d.get("course_context_from_inventory", ""),
-            visible_controls_from_inventory=d.get("visible_controls_from_inventory", ""),
-            data_pii_visible_from_inventory=d.get("data_pii_visible_from_inventory", ""),
-            privacy_redaction_required_before_external_model_call=d.get("privacy_redaction_required_before_external_model_call", False),
-            evidence_class=d.get("evidence_class", ""),
-            inventory_caveat=d.get("inventory_caveat", ""),
-            mapping_relation=d.get("mapping_relation", "primary_action_ui"),
-            screenshot_attachment_key=d.get("screenshot_attachment_key", ""),
-            image_status=d.get("image_status", "embedded_in_original_pdf_not_extracted"),
-            external_image_run_instruction=d.get("external_image_run_instruction", "")
-        )
-
-
-@dataclass
-class TextOnlyRepresentation:
-    page_type: str
-    course_context: str
-    visible_controls: str
-    evidence_class: str
-    known_limitations: str
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "TextOnlyRepresentation":
-        return cls(
-            page_type=d.get("page_type", ""),
-            course_context=d.get("course_context", ""),
-            visible_controls=d.get("visible_controls", ""),
-            evidence_class=d.get("evidence_class", ""),
-            known_limitations=d.get("known_limitations", "")
-        )
-
-
-@dataclass
-class PageObservation:
-    original_pdf_screenshots: List[ScreenshotMapping]
-    supporting_source_pages: List[Any]
-    text_only_representation: TextOnlyRepresentation
-    fixture_state_facts: Dict[str, Any]
-    inferred_accessibility_tree: Optional[Any]
-    accessibility_tree_status: str
-    screenshot_condition_instruction: str
-    text_only_condition_instruction: str
-    modality_comparison_control: str
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "PageObservation":
-        screenshots = [ScreenshotMapping.from_dict(s) for s in d.get("original_pdf_screenshots", [])]
-        text_rep = TextOnlyRepresentation.from_dict(d.get("text_only_representation", {}))
-        return cls(
-            original_pdf_screenshots=screenshots,
-            supporting_source_pages=d.get("supporting_source_pages", []),
-            text_only_representation=text_rep,
-            fixture_state_facts=d.get("fixture_state_facts", {}),
-            inferred_accessibility_tree=d.get("inferred_accessibility_tree"),
-            accessibility_tree_status=d.get("accessibility_tree_status", ""),
-            screenshot_condition_instruction=d.get("screenshot_condition_instruction", ""),
-            text_only_condition_instruction=d.get("text_only_condition_instruction", ""),
-            modality_comparison_control=d.get("modality_comparison_control", "")
-        )
 
 
 @dataclass
@@ -137,17 +50,51 @@ class ProposedAction:
 
 
 @dataclass
+class ScreenshotMapping:
+    pdf_id: str = ""
+    source_pdf_filename: str = ""
+    page_number_1_indexed: int = 1
+    page_id: str = ""
+    page_type: str = ""
+    course_context_from_inventory: str = ""
+    visible_controls_from_inventory: str = ""
+    data_pii_visible_from_inventory: str = ""
+    privacy_redaction_required_before_external_model_call: bool = False
+    evidence_class: str = ""
+    inventory_caveat: str = ""
+    mapping_relation: str = "primary_action_ui"
+    screenshot_attachment_key: str = ""
+    image_status: str = "embedded_in_original_pdf_not_extracted"
+    external_image_run_instruction: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ScreenshotMapping":
+        return cls(
+            pdf_id=d.get("pdf_id", ""),
+            source_pdf_filename=d.get("source_pdf_filename", ""),
+            page_number_1_indexed=int(d.get("page_number_1_indexed", 1)),
+            page_id=d.get("page_id", ""),
+            page_type=d.get("page_type", ""),
+            course_context_from_inventory=d.get("course_context_from_inventory", ""),
+            visible_controls_from_inventory=d.get("visible_controls_from_inventory", ""),
+            data_pii_visible_from_inventory=d.get("data_pii_visible_from_inventory", ""),
+            privacy_redaction_required_before_external_model_call=d.get("privacy_redaction_required_before_external_model_call", False),
+            evidence_class=d.get("evidence_class", ""),
+            inventory_caveat=d.get("inventory_caveat", ""),
+            mapping_relation=d.get("mapping_relation", "primary_action_ui"),
+            screenshot_attachment_key=d.get("screenshot_attachment_key", ""),
+            image_status=d.get("image_status", "embedded_in_original_pdf_not_extracted"),
+            external_image_run_instruction=d.get("external_image_run_instruction", "")
+        )
+
+
+
+@dataclass
 class ModelInputCase:
     case_id: str
-    task: Dict[str, Any]
-    actor_context: Dict[str, Any]
-    resource_context: Dict[str, Any]
-    state_context: Dict[str, Any]
-    page_observation: PageObservation
-    proposed_action: ProposedAction
-    policy_book_version: str
-    policy_book: List[PolicyClause]
-    required_output: Dict[str, Any]
+    page_context: Dict[str, Any]
+    actor_info: Dict[str, Any]
+    policy_info: List[str]  # 36 plain strings in v3
     pair_id: str = field(init=False)
     variant: str = field(init=False)
 
@@ -156,51 +103,115 @@ class ModelInputCase:
         self.pair_id = parts[0]
         self.variant = parts[1] if len(parts) > 1 else ""
 
+    # Convenient accessors for model adapters and prompts
+    @property
+    def user_request(self) -> str:
+        return self.page_context.get("user_request", "")
+
+    @property
+    def authenticated_role(self) -> str:
+        return self.actor_info.get("authenticated_role", "unknown")
+
+    @property
+    def task(self) -> Dict[str, Any]:
+        return {
+            "user_request": self.user_request,
+            "conversation_history": self.page_context.get("conversation_history", [])
+        }
+
+    @property
+    def actor_context(self) -> Dict[str, Any]:
+        return self.actor_info
+
+    @property
+    def resource_context(self) -> Dict[str, Any]:
+        target = self.page_context.get("target", {})
+        return target.get("resource", {}) if isinstance(target, dict) else {}
+
+    @property
+    def state_context(self) -> Dict[str, Any]:
+        target = self.page_context.get("target", {})
+        return target.get("state", {}) if isinstance(target, dict) else {}
+
+    @property
+    def proposed_action(self) -> ProposedAction:
+        pa = self.page_context.get("proposed_action", {})
+        if isinstance(pa, ProposedAction):
+            return pa
+        return ProposedAction.from_dict(pa if isinstance(pa, dict) else {})
+
+    @property
+    def page_observation(self) -> Any:
+        page = self.page_context.get("page", {})
+        return type("PageObservationProxy", (), {
+            "text_only_representation": type("TextRepProxy", (), {
+                "page_type": page.get("page_type", ""),
+                "course_context": page.get("course_context", ""),
+                "visible_controls": page.get("visible_controls", ""),
+                "evidence_class": page.get("evidence_class", ""),
+                "known_limitations": page.get("known_limitations", "")
+            })(),
+            "fixture_state_facts": self.state_context,
+            "inferred_accessibility_tree": None,
+            "original_pdf_screenshots": []
+        })()
+
+    @property
+    def policy_book(self) -> List[PolicyClause]:
+        return [
+            PolicyClause(policy_id=f"POL-{i+1:02d}", statement=s, name=f"Policy {i+1}")
+            for i, s in enumerate(self.policy_info)
+        ]
+
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ModelInputCase":
-        policies = [PolicyClause.from_dict(p) for p in d.get("policy_book", [])]
-        page_obs = PageObservation.from_dict(d.get("page_observation", {}))
-        action = ProposedAction.from_dict(d.get("proposed_action", {}))
-        return cls(
-            case_id=d["case_id"],
-            task=d.get("task", {}),
-            actor_context=d.get("actor_context", {}),
-            resource_context=d.get("resource_context", {}),
-            state_context=d.get("state_context", {}),
-            page_observation=page_obs,
-            proposed_action=action,
-            policy_book_version=d.get("policy_book_version", ""),
-            policy_book=policies,
-            required_output=d.get("required_output", {})
-        )
+        cid = d.get("case_id", "")
+        if "model_input" in d:
+            mi = d["model_input"]
+            return cls(
+                case_id=cid,
+                page_context=mi.get("page_context", {}),
+                actor_info=mi.get("actor_info", {}),
+                policy_info=mi.get("policy_info", [])
+            )
+        elif "page_context" in d and "actor_info" in d:
+            return cls(
+                case_id=cid,
+                page_context=d.get("page_context", {}),
+                actor_info=d.get("actor_info", {}),
+                policy_info=d.get("policy_info", [])
+            )
+        else:
+            page_ctx = {
+                "user_request": d.get("task", {}).get("user_request", ""),
+                "conversation_history": [],
+                "page": d.get("page_observation", {}).get("text_only_representation", {}),
+                "target": {
+                    "resource": d.get("resource_context", {}),
+                    "state": d.get("state_context", {})
+                },
+                "proposed_action": d.get("proposed_action", {})
+            }
+            policy_strings = [
+                p.get("statement", "") if isinstance(p, dict) else str(p)
+                for p in d.get("policy_book", [])
+            ]
+            return cls(
+                case_id=cid,
+                page_context=page_ctx,
+                actor_info=d.get("actor_context", {}),
+                policy_info=policy_strings
+            )
 
     def to_sanitized_dict(self) -> Dict[str, Any]:
         """Returns the public model input strictly free of any gold annotations."""
         return {
             "case_id": self.case_id,
-            "task": self.task,
-            "actor_context": self.actor_context,
-            "resource_context": self.resource_context,
-            "state_context": self.state_context,
-            "page_observation": {
-                "text_only_representation": asdict(self.page_observation.text_only_representation),
-                "fixture_state_facts": self.page_observation.fixture_state_facts,
-                "screenshot_metadata": [
-                    {
-                        "pdf_id": s.pdf_id,
-                        "source_pdf_filename": s.source_pdf_filename,
-                        "page_number_1_indexed": s.page_number_1_indexed,
-                        "page_id": s.page_id,
-                        "page_type": s.page_type,
-                        "evidence_class": s.evidence_class,
-                        "screenshot_attachment_key": s.screenshot_attachment_key
-                    } for s in self.page_observation.original_pdf_screenshots
-                ]
-            },
-            "proposed_action": asdict(self.proposed_action),
-            "policy_book_version": self.policy_book_version,
-            "policy_book": [p.to_dict() for p in self.policy_book],
-            "required_output": self.required_output
+            "model_input": {
+                "page_context": self.page_context,
+                "actor_info": self.actor_info,
+                "policy_info": self.policy_info
+            }
         }
 
 
@@ -282,11 +293,11 @@ class PairRegistryEntry:
     expected_verdict_B: str
     violated_policy_ids_A: List[str]
     violated_policy_ids_B: List[str]
-    source_screenshot_A: Dict[str, Any]
-    source_screenshot_B: Dict[str, Any]
-    visual_support_level: str
-    pair_quality_note: str
-    one_factor_design: str
+    source_screenshot_A: Dict[str, Any] = field(default_factory=dict)
+    source_screenshot_B: Dict[str, Any] = field(default_factory=dict)
+    visual_support_level: str = ""
+    pair_quality_note: str = ""
+    one_factor_design: str = ""
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "PairRegistryEntry":

@@ -1,4 +1,4 @@
-"""Unit tests for specialized safety guards (PolicyGuard, DynaGuard, WebGuard)."""
+"""Unit tests for specialized safety guards (PolicyGuard, DynaGuard, WebGuard) on GuardSLM v3."""
 
 import pytest
 from src.benchmark.data.loader import BenchmarkLoader
@@ -10,7 +10,7 @@ from src.benchmark.runner.experiment_runner import build_model_instance
 
 @pytest.fixture(scope="module")
 def sample_case():
-    loader = BenchmarkLoader(dataset_path="data/GuardSLM_100_Pairs_v2.json")
+    loader = BenchmarkLoader(dataset_path="data/GuardSLM_v3_Single_Master_Dataset.json")
     cases = loader.get_model_inputs(limit=1)
     assert len(cases) == 1
     return cases[0]
@@ -112,8 +112,7 @@ def test_runner_model_factory_routing():
     assert isinstance(wg, WebGuardBenchmarkGuard)
 
 
-def test_text_only_guards_reject_strategy_b(sample_case):
-    # Specialized text guards should disallow Strategy B since they lack multimodal visual reasoning
+def test_text_only_guards_reject_non_text_strategy(sample_case):
     for guard_cls, name in [
         (PolicyGuardBenchmarkGuard, "policyguard"),
         (DynaGuardBenchmarkGuard, "dynaguard"),
@@ -124,4 +123,4 @@ def test_text_only_guards_reject_strategy_b(sample_case):
         guard.tokenizer = object()
         with pytest.raises(ValueError) as excinfo:
             guard.predict(sample_case, strategy="text_plus_screenshot", screenshot_path="/fake/path.png")
-        assert "does not support Strategy B" in str(excinfo.value)
+        assert "not supported" in str(excinfo.value)

@@ -1,4 +1,4 @@
-"""PolicyGuard Benchmark Model Adapter for GuardSLM Benchmark."""
+"""PolicyGuard Benchmark Model Adapter for GuardSLM Benchmark (Text-Only Trajectory Guard)."""
 
 import json
 import os
@@ -56,11 +56,11 @@ class PolicyGuardBenchmarkGuard(BenchmarkModel):
 
     def format_prompt(self, case: ModelInputCase) -> str:
         """Formats case into PolicyGuard's native trajectory prompt structure."""
-        user_req = case.task.get("user_request", "nan")
-        user_role = case.actor_context.get("authenticated_role", "unknown")
+        user_req = case.user_request or "nan"
+        user_role = case.authenticated_role or "unknown"
 
-        # Extract policy context
-        policy_lines = [f"{p.policy_id}: {p.statement}" for p in case.policy_book[:3]]
+        # Policy context from v3 policy_info (list of strings)
+        policy_lines = case.policy_info[:3] if case.policy_info else []
         policy_str = " | ".join(policy_lines) if policy_lines else "Ensure all actions comply with institutional and course policies."
 
         state_str = json.dumps(case.state_context)
@@ -99,9 +99,9 @@ class PolicyGuardBenchmarkGuard(BenchmarkModel):
         if self.model is None or self.tokenizer is None:
             raise RuntimeError(f"Model '{self.name}' not loaded. Call load() before predict().")
 
-        if strategy == "text_plus_screenshot" and screenshot_path:
+        if strategy != "text_only":
             raise ValueError(
-                f"Model '{self.name}' is a text-only trajectory guard and does not support Strategy B."
+                f"Model '{self.name}' is a text-only trajectory guard. Strategy '{strategy}' is not supported."
             )
 
         start_time = time.time()
@@ -124,10 +124,9 @@ class PolicyGuardBenchmarkGuard(BenchmarkModel):
 
         native_label, mapped_verdict, parse_status = self.parse_native_output(raw_text)
 
-        # Standard policy checks representation
         policy_checks = [
-            {"policy_id": p.policy_id, "status": "not_applicable", "evidence_quotes": []}
-            for p in case.policy_book
+            {"policy_id": f"POL-{i+1:02d}", "status": "not_applicable", "evidence_quotes": []}
+            for i in range(len(case.policy_info))
         ]
 
         parsed = ParsedBenchmarkOutput(

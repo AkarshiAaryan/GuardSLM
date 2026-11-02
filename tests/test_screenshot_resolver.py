@@ -1,23 +1,19 @@
-"""Test screenshot resolver, PDF alias mapping, and missing screenshot handling."""
+"""Test screenshot resolver, PDF alias mapping, and text-only non-resolution."""
 
 import os
 from src.benchmark.data.loader import BenchmarkLoader
 from src.benchmark.vision.screenshot_resolver import ScreenshotResolver
 
 
-def test_screenshot_resolution_existing_case():
+def test_screenshot_resolution_text_only_case():
     loader = BenchmarkLoader()
-    cases = loader.get_model_inputs(limit=5)
+    cases = loader.get_model_inputs(limit=1)
     resolver = ScreenshotResolver()
 
-    # Case 0 is GSLM-P001-A (PDF6: 1000114630.pdf, page 9)
+    # In pure text-only benchmark, cases do not embed screenshots
     scr_path, meta = resolver.resolve_case_screenshot(cases[0])
-    assert meta["status"] == "resolved"
-    assert scr_path is not None
-    assert os.path.isfile(scr_path)
-    assert os.path.getsize(scr_path) > 0
-    assert meta["page_number"] == 9
-    assert meta["pdf_id"] == "PDF6"
+    assert scr_path is None
+    assert meta["status"] == "unavailable"
 
 
 def test_alias_resolution_for_pdf1():

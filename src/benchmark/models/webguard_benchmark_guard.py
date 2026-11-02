@@ -1,4 +1,4 @@
-"""WebGuard Benchmark Model Adapter for GuardSLM Benchmark."""
+"""WebGuard Benchmark Model Adapter for GuardSLM Benchmark (Text-Only Accessibility Action Guard)."""
 
 import json
 import os
@@ -80,19 +80,16 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
 
     def format_prompt(self, case: ModelInputCase) -> str:
         """Formats case into WebGuard's native accessibility tree prompt."""
-        # Derive accessibility tree representation
-        if case.page_observation.inferred_accessibility_tree:
-            a11y_tree = str(case.page_observation.inferred_accessibility_tree)
-        else:
-            page_type = case.page_observation.text_only_representation.page_type or "page"
-            course_ctx = case.page_observation.text_only_representation.course_context or ""
-            controls = case.page_observation.text_only_representation.visible_controls or "none"
-            a11y_tree = (
-                f"RootWebArea '{page_type}'\n"
-                f"  heading 'Course Context: {course_ctx}'\n"
-                f"  main\n"
-                f"    controls: {controls}"
-            )
+        page_dict = case.page_context.get("page", {}) if isinstance(case.page_context, dict) else {}
+        page_type = page_dict.get("page_type") or "page"
+        course_ctx = page_dict.get("course_context") or ""
+        controls = page_dict.get("visible_controls") or "none"
+        a11y_tree = (
+            f"RootWebArea '{page_type}'\n"
+            f"  heading 'Course Context: {course_ctx}'\n"
+            f"  main\n"
+            f"    controls: {controls}"
+        )
 
         operation = case.proposed_action.operation
         target_dict = case.proposed_action.target if isinstance(case.proposed_action.target, dict) else {}
@@ -100,13 +97,13 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         proposed_action_str = f"{operation} {target_str}".strip()
 
         tag_head = target_dict.get("element_type", "button") if isinstance(target_dict, dict) else "button"
-        desc = case.task.get("user_request", "nan")
+        desc = case.user_request or "nan"
         url = f"https://moodle.university.edu/{case.resource_context.get('course_id', 'course')}/{case.resource_context.get('resource_type', 'view')}"
 
         policy_str = None
         moodle_state = None
         if self.augmented:
-            policy_lines = [f"{p.policy_id}: {p.statement}" for p in case.policy_book[:3]]
+            policy_lines = case.policy_info[:3] if case.policy_info else []
             policy_str = " | ".join(policy_lines) if policy_lines else None
             moodle_state = case.state_context
 
@@ -134,9 +131,9 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         if self.model is None or self.tokenizer is None:
             raise RuntimeError(f"Model '{self.name}' not loaded. Call load() before predict().")
 
-        if strategy == "text_plus_screenshot" and screenshot_path:
+        if strategy != "text_only":
             raise ValueError(
-                f"Model '{self.name}' is an accessibility-tree action guard and does not support Strategy B."
+                f"Model '{self.name}' is a text-only accessibility action guard. Strategy '{strategy}' is not supported."
             )
 
         start_time = time.time()
@@ -171,8 +168,8 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         risky_level, mapped_verdict, parse_status = self.parse_native_output(raw_text)
 
         policy_checks = [
-            {"policy_id": p.policy_id, "status": "not_applicable", "evidence_quotes": []}
-            for p in case.policy_book
+            {"policy_id": f"POL-{i+1:02d}", "status": "not_applicable", "evidence_quotes": []}
+            for i in range(len(case.policy_info))
         ]
 
         parsed = ParsedBenchmarkOutput(

@@ -1,4 +1,4 @@
-"""GuardSLM Benchmark Prompt Renderer."""
+"""GuardSLM Benchmark Prompt Renderer for v3 Master Dataset."""
 
 import json
 import os
@@ -9,30 +9,25 @@ from ..data.schema import ModelInputCase, PolicyClause
 DEFAULT_TEMPLATE_PATH = "prompts/guardslm_100_authorization_prompt.txt"
 
 
-def format_policy_book(
-    policies: List[PolicyClause],
-    policy_order: Optional[List[str]] = None,
-    excluded_policy_ids: Optional[List[str]] = None
-) -> str:
+def format_policy_book(policies: Any) -> str:
     """Formats the policy book rules into clear, structured text."""
-    policy_map = {p.policy_id: p for p in policies}
-    excluded = set(excluded_policy_ids or [])
-
-    if policy_order is not None:
-        ordered_ids = [pid for pid in policy_order if pid in policy_map and pid not in excluded]
-    else:
-        ordered_ids = [p.policy_id for p in policies if p.policy_id not in excluded]
-
     lines = []
-    for idx, pid in enumerate(ordered_ids, 1):
-        p = policy_map[pid]
-        lines.append(f"Rule #{idx} [{p.policy_id}]: {p.name} (Category: {p.category})")
-        lines.append(f"  Statement: {p.statement}")
-        lines.append(f"  Moodle Fact/Capability: {p.moodle_capability_or_fixture_fact}")
-        lines.append(f"  Enforcement: {p.enforcement_level}")
-        lines.append("")
+    if not policies:
+        return "Ensure all actions comply with institutional and course policies."
 
-    return "\n".join(lines).strip()
+    # If list of plain strings (v3 format)
+    if isinstance(policies[0], str):
+        for idx, rule_str in enumerate(policies, 1):
+            lines.append(f"Policy Rule #{idx}: {rule_str}")
+        return "\n\n".join(lines).strip()
+
+    # If list of PolicyClause objects
+    for idx, p in enumerate(policies, 1):
+        if hasattr(p, "statement") and p.statement:
+            lines.append(f"Policy Rule #{idx} [{getattr(p, 'policy_id', f'POL-{idx:02d}')}]: {p.statement}")
+        else:
+            lines.append(f"Policy Rule #{idx}: {str(p)}")
+    return "\n\n".join(lines).strip()
 
 
 def render_benchmark_prompt(
@@ -64,11 +59,8 @@ def render_benchmark_prompt(
     fixture_facts = obs.fixture_state_facts
     fixture_facts_text = f"- Fixture Facts: {json.dumps(fixture_facts)}" if fixture_facts else ""
 
-    policy_formatted = format_policy_book(
-        case.policy_book,
-        policy_order=policy_order,
-        excluded_policy_ids=excluded_policy_ids
-    )
+    policy_source = case.policy_info if case.policy_info else case.policy_book
+    policy_formatted = format_policy_book(policy_source)
 
     replacements = {
         "case_id": case.case_id,

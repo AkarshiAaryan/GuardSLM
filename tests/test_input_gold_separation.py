@@ -1,10 +1,10 @@
-"""Test strict separation of public model inputs from private gold annotations."""
+"""Test strict separation of public model inputs from private gold annotations on GuardSLM v3."""
 
 from src.benchmark.data.loader import BenchmarkLoader
 
 
 def test_strict_separation_of_inputs_and_golds():
-    loader = BenchmarkLoader()
+    loader = BenchmarkLoader(dataset_path="data/GuardSLM_v3_Single_Master_Dataset.json")
     cases = loader.get_model_inputs()
     assert len(cases) == 200
 
@@ -19,19 +19,19 @@ def test_strict_separation_of_inputs_and_golds():
         # Check top level
         for key in prohibited_keys:
             assert key not in sanitized, f"Prohibited gold key '{key}' found in model input {case.case_id}!"
+            assert key not in sanitized.get("model_input", {}), f"Prohibited gold key '{key}' found in model_input of {case.case_id}!"
 
-        # Check that complete policy book is provided
-        assert len(case.policy_book) == 36, f"Case {case.case_id} has incomplete policy book!"
-        assert len(sanitized["policy_book"]) == 36
+        # Check that complete policy info is provided (36 natural language strings)
+        assert len(case.policy_info) == 36, f"Case {case.case_id} has incomplete policy info!"
+        assert len(sanitized["model_input"]["policy_info"]) == 36
 
-        # Check required public fields
-        assert "task" in sanitized
-        assert "actor_context" in sanitized
-        assert "resource_context" in sanitized
-        assert "state_context" in sanitized
-        assert "page_observation" in sanitized
-        assert "proposed_action" in sanitized
-        assert "required_output" in sanitized
+        # Check required public fields in model_input
+        mi = sanitized["model_input"]
+        assert "page_context" in mi
+        assert "actor_info" in mi
+        assert "policy_info" in mi
+        assert "user_request" in mi["page_context"]
+        assert "proposed_action" in mi["page_context"]
 
     # Verify that gold annotations are separately maintained
     golds = loader.get_gold_annotations()

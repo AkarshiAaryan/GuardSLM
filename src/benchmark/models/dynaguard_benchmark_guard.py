@@ -1,4 +1,4 @@
-"""DynaGuard Benchmark Model Adapter for GuardSLM Benchmark."""
+"""DynaGuard Benchmark Model Adapter for GuardSLM Benchmark (Text-Only Compliance Gatekeeper)."""
 
 import json
 import time
@@ -55,15 +55,16 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
 
     def format_prompt(self, case: ModelInputCase) -> str:
         """Formats case into DynaGuard's policy compliance gatekeeper format."""
-        user_role = case.actor_context.get("authenticated_role", "unknown")
-        user_req = case.task.get("user_request", "nan")
+        user_role = case.authenticated_role or "unknown"
+        user_req = case.user_request or "nan"
         course_id = case.resource_context.get("course_id", "N/A")
         res_type = case.resource_context.get("resource_type", "N/A")
         res_id = case.resource_context.get("resource_id", "N/A")
         state_str = json.dumps(case.state_context)
         action_str = f"{case.proposed_action.operation} {json.dumps(case.proposed_action.target)}"
 
-        policy_lines = [f"{p.policy_id}: {p.statement}" for p in case.policy_book[:4]]
+        # Relevant policy strings from v3 policy_info
+        policy_lines = case.policy_info[:4] if case.policy_info else []
         policy_str = "\n".join(policy_lines) if policy_lines else "Ensure all actions comply with institutional policies."
 
         prompt = (
@@ -102,9 +103,9 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
         if self.model is None or self.tokenizer is None:
             raise RuntimeError(f"Model '{self.name}' not loaded. Call load() before predict().")
 
-        if strategy == "text_plus_screenshot" and screenshot_path:
+        if strategy != "text_only":
             raise ValueError(
-                f"Model '{self.name}' is a text-only policy guard and does not support Strategy B."
+                f"Model '{self.name}' is a text-only policy guard. Strategy '{strategy}' is not supported."
             )
 
         start_time = time.time()
@@ -139,8 +140,8 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
         native_label, mapped_verdict, parse_status = self.parse_native_output(raw_text)
 
         policy_checks = [
-            {"policy_id": p.policy_id, "status": "not_applicable", "evidence_quotes": []}
-            for p in case.policy_book
+            {"policy_id": f"POL-{i+1:02d}", "status": "not_applicable", "evidence_quotes": []}
+            for i in range(len(case.policy_info))
         ]
 
         parsed = ParsedBenchmarkOutput(
