@@ -44,22 +44,62 @@ class HFBenchmarkGuard(BenchmarkModel):
             kwargs["torch_dtype"] = torch.float32
 
         if self.is_vlm:
+            # 1. Load processor for multimodal input
             try:
-                from transformers import AutoProcessor, AutoModelForVision2Seq
+                from transformers import AutoProcessor
                 self.processor = AutoProcessor.from_pretrained(self.checkpoint, trust_remote_code=True)
-                if hasattr(self.processor, "tokenizer"):
+            except Exception:
+                self.processor = None
+
+            # 2. Always load tokenizer as fallback/text baseline
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint, trust_remote_code=True)
+            except Exception:
+                if self.processor is not None and hasattr(self.processor, "tokenizer"):
                     self.tokenizer = self.processor.tokenizer
+
+            # 3. Load model using specialized VLM classes
+            # Priority 1: Qwen3-VL dedicated architecture
+            try:
+                from transformers import Qwen3VLForConditionalGeneration
+                self.model = Qwen3VLForConditionalGeneration.from_pretrained(self.checkpoint, **kwargs)
+                return
+            except Exception:
+                pass
+
+            # Priority 2: Modern AutoModelForImageTextToText
+            try:
+                from transformers import AutoModelForImageTextToText
+                self.model = AutoModelForImageTextToText.from_pretrained(self.checkpoint, **kwargs)
+                return
+            except Exception:
+                pass
+
+            # Priority 3: AutoModelForVision2Seq
+            try:
+                from transformers import AutoModelForVision2Seq
                 self.model = AutoModelForVision2Seq.from_pretrained(self.checkpoint, **kwargs)
                 return
             except Exception:
-                # Fallback to causal LM if AutoModelForVision2Seq does not recognize class
-                try:
-                    from transformers import Qwen2_5_VLForConditionalGeneration
-                    self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(self.checkpoint, **kwargs)
-                    return
-                except Exception:
-                    pass
+                pass
 
+            # Priority 4: Qwen2.5-VL
+            try:
+                from transformers import Qwen2_5_VLForConditionalGeneration
+                self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(self.checkpoint, **kwargs)
+                return
+            except Exception:
+                pass
+
+            # Priority 5: AutoModel fallback
+            try:
+                from transformers import AutoModel
+                self.model = AutoModel.from_pretrained(self.checkpoint, **kwargs)
+                return
+            except Exception:
+                pass
+
+        # Pure text-only SLM loading
         self.tokenizer = AutoTokenizer.from_pretrained(self.checkpoint, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(self.checkpoint, **kwargs)
 
@@ -80,10 +120,7 @@ class HFBenchmarkGuard(BenchmarkModel):
                         ]
                     }
                 ]
-                text_prompt = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                inputs = self.processor(text=[text_prompt], images=[image], padding=True, return_tensors="pt").to(self.model.device)
             else:
-                # Text-only Strategy A execution with VLM
                 messages = [
                     {
                         "role": "user",
@@ -92,28 +129,37 @@ class HFBenchmarkGuard(BenchmarkModel):
                         ]
                     }
                 ]
+
+            try:
                 text_prompt = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                inputs = self.processor(text=[text_prompt], padding=True, return_tensors="pt").to(self.model.device)
+                if image_path:
+                    inputs = self.processor(text=[text_prompt], images=[image], padding=True, return_tensors="pt").to(self.model.device)
+                else:
+                    inputs = self.processor(text=[text_prompt], padding=True, return_tensors="pt").to(self.model.device)
 
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=self.max_new_tokens,
-                    temperature=self.temperature,
-                    do_sample=(self.temperature > 0.0)
-                )
-            generated_ids = outputs[0][inputs.input_ids.shape[1]:]
-            return self.processor.decode(generated_ids, skip_special_tokens=True)
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=self.max_new_tokens,
+                        temperature=self.temperature,
+                        do_sample=(self.temperature > 0.0)
+                    )
+                generated_ids = outputs[0][inputs.input_ids.shape[1]:]
+                return self.processor.decode(generated_ids, skip_special_tokens=True)
+            except Exception:
+                # If processor-based generation hits an issue on text-only, fall through to tokenizer
+                if image_path:
+                    raise
 
-        # Pure text-only SLM generation (Strategy A only)
+        # Pure text-only generation (Strategy A fallback or text SLMs)
         if image_path:
             raise ValueError(
-                f"Model '{self.name}' is a text-only SLM and does not support Strategy B (image input). "
-                f"Use a Vision-Language Model (e.g. Qwen3-VL-2B) for Strategy B."
+                f"Model '{self.name}' is running without an image-capable processor. "
+                f"Cannot process image for Strategy B."
             )
 
         messages = [{"role": "user", "content": prompt_text}]
-        if hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None):
+        if self.tokenizer is not None and hasattr(self.tokenizer, "apply_chat_template") and getattr(self.tokenizer, "chat_template", None):
             try:
                 formatted_prompt = self.tokenizer.apply_chat_template(
                     messages, tokenize=False, add_generation_prompt=True
@@ -123,17 +169,20 @@ class HFBenchmarkGuard(BenchmarkModel):
         else:
             formatted_prompt = prompt_text
 
-        inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.model.device)
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                temperature=self.temperature,
-                do_sample=(self.temperature > 0.0),
-                pad_token_id=self.tokenizer.eos_token_id
-            )
-        generated_ids = outputs[0][inputs.input_ids.shape[1]:]
-        return self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+        if self.tokenizer is not None:
+            inputs = self.tokenizer(formatted_prompt, return_tensors="pt").to(self.model.device)
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=self.max_new_tokens,
+                    temperature=self.temperature,
+                    do_sample=(self.temperature > 0.0),
+                    pad_token_id=self.tokenizer.eos_token_id
+                )
+            generated_ids = outputs[0][inputs.input_ids.shape[1]:]
+            return self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        raise RuntimeError(f"Neither processor nor tokenizer was available for model '{self.name}'.")
 
     def predict(
         self,
