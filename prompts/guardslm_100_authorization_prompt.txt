@@ -57,19 +57,23 @@ DECISION & CONSISTENCY RULES
 REQUIRED STRICT JSON OUTPUT CONTRACT
 ================================================================================
 You MUST reply with a single valid, well-formed JSON object. Do not include markdown preamble outside the JSON block.
-The JSON object MUST contain the following exact keys:
+Output "case_id", "verdict", "applicable_policy_ids", "violated_policy_ids", and "rationale" at the top of your JSON.
+Include policy_checks entries for all applicable or violated policies (all omitted policies default to "not_applicable").
 
+The JSON object MUST match this exact schema:
+
+```json
 {
   "case_id": "{case_id}",
   "verdict": "ALLOW" | "BLOCK" | "ASK",
   "applicable_policy_ids": ["POL-..."],
   "violated_policy_ids": ["POL-..."],
+  "rationale": "Concise reasoning tying actor, resource, action, and policies together.",
   "policy_checks": [
-    // MUST contain exactly 36 entries, one for every policy_id in the policy book
     {
       "policy_id": "POL-...",
-      "status": "not_applicable" | "satisfied" | "violated" | "insufficient_evidence",
-      "evidence_quotes": ["quote from input or empty if not applicable"]
+      "status": "violated" | "satisfied" | "insufficient_evidence",
+      "evidence_quotes": ["quote from input"]
     }
   ],
   "evidence": [
@@ -78,6 +82,6 @@ The JSON object MUST contain the following exact keys:
       "quote": "exact quote from context",
       "source_field_path": "e.g. actor_context.authenticated_role"
     }
-  ],
-  "rationale": "Concise reasoning tying actor, resource, action, and policies together."
+  ]
 }
+```

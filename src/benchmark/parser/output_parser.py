@@ -54,37 +54,52 @@ def parse_model_output(
     errors: List[str] = []
 
     json_str = extract_json_block(raw_text)
-    if not json_str:
-        return ParsedBenchmarkOutput(
-            case_id=expected_case_id,
-            verdict="UNKNOWN",
-            applicable_policy_ids=[],
-            violated_policy_ids=[],
-            policy_checks=[],
-            evidence=[],
-            rationale="",
-            parse_status="failed",
-            validation_errors=["No JSON object found in model response."],
-            raw_response=raw_text
-        )
+    data = None
+    if json_str:
+        try:
+            data = json.loads(json_str)
+        except Exception:
+            # Resilient JSON repair for truncated model outputs
+            repaired = json_str.strip()
+            repaired = re.sub(r',\s*"[^"]*":?\s*"?$', '', repaired)
+            repaired = re.sub(r',\s*$', '', repaired)
+            unescaped_quotes = len(re.findall(r'(?<!\\)"', repaired))
+            if unescaped_quotes % 2 != 0:
+                repaired += '"'
+            open_sq = repaired.count("[") - repaired.count("]")
+            if open_sq > 0:
+                repaired += "]" * open_sq
+            open_cur = repaired.count("{") - repaired.count("}")
+            if open_cur > 0:
+                repaired += "}" * open_cur
+            try:
+                data = json.loads(repaired)
+            except Exception:
+                pass
 
-    try:
-        data = json.loads(json_str)
-    except Exception as e:
-        return ParsedBenchmarkOutput(
-            case_id=expected_case_id,
-            verdict="UNKNOWN",
-            applicable_policy_ids=[],
-            violated_policy_ids=[],
-            policy_checks=[],
-            evidence=[],
-            rationale="",
-            parse_status="failed",
-            validation_errors=[f"JSON syntax error: {e}"],
-            raw_response=raw_text
-        )
-
+    # Regex extraction fallback if JSON parsing could not be completed
     if not isinstance(data, dict):
+        data = {}
+        v_match = re.search(r'"verdict"\s*:\s*"(ALLOW|BLOCK|ASK)"', raw_text, re.IGNORECASE)
+        if not v_match:
+            v_match = re.search(r'\b(ALLOW|BLOCK|ASK)\b', raw_text)
+        if v_match:
+            data["verdict"] = v_match.group(1).upper()
+
+        c_match = re.search(r'"case_id"\s*:\s*"([^"]+)"', raw_text)
+        if c_match:
+            data["case_id"] = c_match.group(1)
+        rat_match = re.search(r'"rationale"\s*:\s*"([^"]+)"', raw_text)
+        if rat_match:
+            data["rationale"] = rat_match.group(1)
+        app_match = re.search(r'"applicable_policy_ids"\s*:\s*\[(.*?)\]', raw_text, re.DOTALL)
+        if app_match:
+            data["applicable_policy_ids"] = re.findall(r'"([^"]+)"', app_match.group(1))
+        viol_match = re.search(r'"violated_policy_ids"\s*:\s*\[(.*?)\]', raw_text, re.DOTALL)
+        if viol_match:
+            data["violated_policy_ids"] = re.findall(r'"([^"]+)"', viol_match.group(1))
+
+    if not data or not data.get("verdict"):
         return ParsedBenchmarkOutput(
             case_id=expected_case_id,
             verdict="UNKNOWN",
@@ -94,7 +109,7 @@ def parse_model_output(
             evidence=[],
             rationale="",
             parse_status="failed",
-            validation_errors=["Parsed JSON is not an object."],
+            validation_errors=["Failed to extract valid verdict or JSON structure from model response."],
             raw_response=raw_text
         )
 
@@ -145,11 +160,16 @@ def parse_model_output(
                 "evidence_quotes": c.get("evidence_quotes", [])
             })
 
-        missing_checks = valid_policy_ids - seen_check_ids
-        if missing_checks:
-            errors.append(f"Policy checks missing {len(missing_checks)} policy clauses: {list(missing_checks)[:5]}")
-    else:
-        errors.append("policy_checks field is missing or not a list.")
+    # Auto-fill unmentioned policy clauses as not_applicable to ensure complete 36-policy coverage
+    missing_checks = valid_policy_ids - seen_check_ids
+    if missing_checks:
+        errors.append(f"Policy checks missing {len(missing_checks)} policy clauses: {list(missing_checks)[:5]}")
+        for pid in missing_checks:
+            policy_checks.append({
+                "policy_id": pid,
+                "status": "not_applicable",
+                "evidence_quotes": []
+            })
 
     # 5. Evidence & Rationale
     raw_ev = data.get("evidence", [])

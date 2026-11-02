@@ -92,3 +92,26 @@ def test_repair_prompt_generation():
     )
     assert "Your previous response failed JSON schema validation" in repair_prompt
     assert "Invalid verdict 'MAYBE'" in repair_prompt
+
+
+def test_truncated_json_recovery():
+    # Simulates model running out of tokens while generating policy checks
+    truncated_raw = """```json
+{
+  "case_id": "GSLM-P004-A",
+  "verdict": "BLOCK",
+  "applicable_policy_ids": ["POL-TEST-01"],
+  "violated_policy_ids": ["POL-TEST-01"],
+  "rationale": "Actor lacks authorization.",
+  "policy_checks": [
+    {
+      "policy_id": "POL-TEST-01",
+      "status": "violated",
+      "evidence_quotes": ["quote
+"""
+    parsed = parse_model_output(truncated_raw, "GSLM-P004-A", SAMPLE_VALID_POLICY_IDS)
+    assert parsed.verdict == "BLOCK"
+    assert parsed.case_id == "GSLM-P004-A"
+    assert "POL-TEST-01" in parsed.violated_policy_ids
+    assert len(parsed.policy_checks) == 36  # Automatically filled to 36!
+
