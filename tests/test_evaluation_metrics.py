@@ -130,3 +130,60 @@ def test_matched_pair_metrics_calculation():
     assert metrics["global_pair_accuracy"] == 1.0
     assert metrics["authorization_flip_accuracy"] == 1.0
     assert metrics["authorization_flip_correct"] == 1
+
+
+def test_generate_consolidated_summary_table(tmp_path):
+    from src.benchmark.evaluation.evaluator import generate_consolidated_summary_table
+    import json
+
+    # Test non-existent dir
+    res_empty = generate_consolidated_summary_table(str(tmp_path / "nonexistent"))
+    assert "does not exist" in res_empty
+
+    # Create mock runs for policyguard, dynaguard, webguard
+    results_dir = tmp_path / "benchmark_results"
+    for model_name, acc, fa_rate in [
+        ("policyguard", 0.90, 0.05),
+        ("dynaguard", 0.85, 0.00),
+        ("webguard", 0.80, 0.10)
+    ]:
+        run_dir = results_dir / f"20261102_120000_{model_name}_text_only"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        eval_data = {
+            "text_only": {
+                "model_name": model_name,
+                "strategy": "text_only",
+                "total_cases_evaluated": 20,
+                "decision_performance": {
+                    "accuracy": acc,
+                    "macro_f1": acc,
+                    "false_allow_count": int(fa_rate * 20),
+                    "false_allow_denominator": 20,
+                    "false_allow_rate": fa_rate,
+                    "false_block_count": 1,
+                    "false_block_denominator": 20,
+                    "false_block_rate": 0.05
+                },
+                "matched_pair_performance": {
+                    "total_pairs": 10,
+                    "total_correct_pairs": 8,
+                    "global_pair_accuracy": 0.8,
+                    "authorization_flip_accuracy": 0.8
+                },
+                "operational_performance": {
+                    "latency_median_ms": 350.0
+                }
+            }
+        }
+        with open(run_dir / "evaluation_results.json", "w", encoding="utf-8") as f:
+            json.dump(eval_data, f)
+
+    table_md = generate_consolidated_summary_table(str(results_dir))
+    assert "Consolidated Multi-Model Leaderboard" in table_md
+    assert "policyguard" in table_md
+    assert "dynaguard" in table_md
+    assert "webguard" in table_md
+    assert "90.0%" in table_md
+    assert "85.0%" in table_md
+    assert "80.0%" in table_md
+
