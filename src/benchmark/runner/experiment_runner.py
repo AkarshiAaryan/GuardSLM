@@ -142,8 +142,8 @@ def run_benchmark_experiment(
                     json.dump(pred.to_dict(), f, indent=2)
                 all_predictions_by_strat[strat].append(pred)
 
-                if idx % 20 == 0 or idx == len(cases):
-                    print(f"  [{strat}] Completed {idx}/{len(cases)} cases.")
+                if idx % 10 == 0 or idx == len(cases):
+                    print(f"  [{strat}] Completed {idx}/{len(cases)} cases (latest: {case.case_id}, {pred.latency_ms:.0f}ms).", flush=True)
     finally:
         model.unload()
 
