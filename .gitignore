@@ -18,6 +18,9 @@ models/*
 !models/.gitkeep
 reports/*
 !reports/.gitkeep
+!reports/guardslm_100_pairs_validation_report.md
+data/extracted_screenshots/
+data/benchmark_results/
 
 # Secrets
 .env

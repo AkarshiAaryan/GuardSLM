@@ -41,6 +41,13 @@ models:
     load_in_4bit: false
     description: "PolicyGuard-4B Strategy A (UC Davis / Uniphore, Apache-2.0)."
 
+  qwen3_vl_2b:
+    enabled: true
+    checkpoint: "Qwen/Qwen3-VL-2B-Instruct"
+    is_vlm: true
+    load_in_4bit: false
+    description: "Qwen3-VL 2B Multimodal Vision-Language Model. Supports BOTH Strategy A (Text-only) and Strategy B (Text + Screenshot)."
+
   large_model_judge:
     enabled: false
     description: "Disabled (Free open-source SLMs only)."
