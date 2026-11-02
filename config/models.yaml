@@ -4,29 +4,28 @@ models:
     mode: "perfect"
     description: "Lightweight CPU mock guard for local pipeline testing."
 
-  qwen_0_5b:
+  policyguard:
     enabled: true
-    checkpoint: "Qwen/Qwen2.5-0.5B-Instruct"
+    checkpoint: "Rakancorle1/PolicyGuard-4B"
     load_in_4bit: false
-    description: "Qwen 2.5 0.5B Instruct (Public, Ungated, Free HF, Ultra-fast SLM)."
+    limit: 24
+    description: "PolicyGuard-4B Web Agent Trajectory Guardrail (Native trajectory format -> violation / no_violation)."
 
-  qwen_1_5b:
+  dynaguard:
     enabled: true
-    checkpoint: "Qwen/Qwen2.5-1.5B-Instruct"
+    checkpoint: "tomg-group-umd/DynaGuard-1.7B"
     load_in_4bit: false
-    description: "Qwen 2.5 1.5B Instruct (Public, Ungated, Free HF)."
+    limit: 24
+    description: "DynaGuard-1.7B Dynamic Policy Compliance Guardrail (Native gatekeeper format -> PASS/ALLOW or FAIL/BLOCK)."
 
-  qwen_3b:
+  webguard:
     enabled: true
     checkpoint: "Qwen/Qwen2.5-3B-Instruct"
+    adapter_path: "models/webguard_qwen_lora"
     load_in_4bit: false
-    description: "Qwen 2.5 3B Instruct (Public, Ungated, Free HF)."
-
-  qwen_7b:
-    enabled: true
-    checkpoint: "Qwen/Qwen2.5-7B-Instruct"
-    load_in_4bit: true
-    description: "Qwen 2.5 7B Instruct (Public, Ungated, Free HF, 4-bit)."
+    augmented: true
+    limit: 24
+    description: "WebGuard-3B Accessibility Tree Action Guardrail (Native a11y tree risk format -> SAFE / LOW / HIGH)."
 
   qwen3_vl_2b:
     enabled: true

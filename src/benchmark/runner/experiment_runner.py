@@ -21,6 +21,15 @@ def build_model_instance(model_name: str, config: Optional[Dict[str, Any]] = Non
     if model_name.startswith("mock") or model_name == "mock_guard":
         cfg["oracle_golds"] = oracle_golds or {}
         return MockBenchmarkGuard(name=model_name, config=cfg)
+    elif "policyguard" in model_name:
+        from ..models.policyguard_benchmark_guard import PolicyGuardBenchmarkGuard
+        return PolicyGuardBenchmarkGuard(name=model_name, config=cfg)
+    elif "dynaguard" in model_name:
+        from ..models.dynaguard_benchmark_guard import DynaGuardBenchmarkGuard
+        return DynaGuardBenchmarkGuard(name=model_name, config=cfg)
+    elif "webguard" in model_name:
+        from ..models.webguard_benchmark_guard import WebGuardBenchmarkGuard
+        return WebGuardBenchmarkGuard(name=model_name, config=cfg)
     elif "qwen" in model_name or "hf" in model_name:
         from ..models.hf_benchmark_guard import HFBenchmarkGuard
         return HFBenchmarkGuard(name=model_name, config=cfg)
