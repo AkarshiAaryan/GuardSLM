@@ -7,11 +7,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.data.loader import load_test_cases
 from src.models.mock_guard import MockGuard
-from src.models.webguard import WebGuardAdapter
 from src.models.llama_guard import LlamaGuardAdapter
 from src.models.qwen_guard import QwenGuardAdapter
 from src.models.dynaguard import DynaGuardAdapter
-from src.models.policyguard import PolicyGuardAdapter
 from src.evaluation.runner import run_evaluation_for_model
 from src.evaluation.metrics import calculate_overall_metrics
 from src.evaluation.pair_metrics import calculate_pair_metrics
@@ -24,11 +22,9 @@ logger = setup_logger("run_guards")
 
 MODEL_MAP = {
     "mock_guard": MockGuard,
-    "webguard": WebGuardAdapter,
     "llama_guard": LlamaGuardAdapter,
     "qwen_guard": QwenGuardAdapter,
     "dynaguard": DynaGuardAdapter,
-    "policyguard": PolicyGuardAdapter
 }
 
 def main():

@@ -28,19 +28,6 @@ models:
     load_in_4bit: true
     description: "Qwen 2.5 7B Instruct (Public, Ungated, Free HF, 4-bit)."
 
-  webguard_finetuned:
-    enabled: true
-    checkpoint: "Qwen/Qwen2.5-3B-Instruct"
-    adapter_path: "models/webguard_qwen_lora"
-    load_in_4bit: false
-    description: "WebGuard Fine-Tuned (Qwen2.5-3B + WebGuard a11y LoRA)."
-
-  policyguard:
-    enabled: true
-    checkpoint: "Rakancorle1/PolicyGuard-4B"
-    load_in_4bit: false
-    description: "PolicyGuard-4B Strategy A (UC Davis / Uniphore, Apache-2.0)."
-
   qwen3_vl_2b:
     enabled: true
     checkpoint: "Qwen/Qwen3-VL-2B-Instruct"
