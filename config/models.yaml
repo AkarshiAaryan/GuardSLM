@@ -17,16 +17,25 @@ models:
     checkpoint: "tomg-group-umd/DynaGuard-1.7B"
     load_in_4bit: false
     limit: 20
-    description: "DynaGuard-1.7B Dynamic Policy Compliance Guardrail (Native gatekeeper format -> PASS/ALLOW or FAIL/BLOCK)."
+    description: "DynaGuard-1.7B Dynamic Dialogue Policy Compliance Guardrail (Native [INST] policy + dialogue format -> PASS / FAIL)."
 
   webguard:
     enabled: true
     checkpoint: "Qwen/Qwen2.5-3B-Instruct"
-    adapter_path: "models/webguard_qwen_lora"
+    adapter_path: null
     load_in_4bit: false
     augmented: true
     limit: 20
-    description: "WebGuard-3B Accessibility Tree Action Guardrail (Native a11y tree risk format -> SAFE / LOW / HIGH)."
+    description: "WebGuard-3B Augmented Condition (Accessibility tree + proposed action + institutional policy + platform state)."
+
+  webguard_native:
+    enabled: true
+    checkpoint: "Qwen/Qwen2.5-3B-Instruct"
+    adapter_path: null
+    load_in_4bit: false
+    augmented: false
+    limit: 20
+    description: "WebGuard-3B Native Baseline Condition (Unaugmented accessibility tree + proposed action only)."
 
   qwen3_vl_2b:
     enabled: true

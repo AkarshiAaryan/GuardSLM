@@ -20,15 +20,16 @@ def test_policyguard_adapter_formatting_and_parsing(sample_case):
     guard = PolicyGuardBenchmarkGuard(name="policyguard", config={"enabled": True})
     prompt = guard.format_prompt(sample_case)
 
-    # Check key components of PolicyGuard trajectory format
+    # Check native PolicyGuard trajectory action format
+    assert prompt.startswith("Policy:")
     assert "Trajectory Actions:" in prompt
-    assert "Step 1: User Request:" in prompt
-    assert "Step 2: User Role:" in prompt
-    assert "Step 3: State Context:" in prompt
-    assert "Step 4: Proposed Action:" in prompt
-    assert "violation or no_violation" in prompt
+    assert "Step 1: Authenticate as" in prompt
+    assert "Step 2: Navigate to" in prompt
+    assert "Step 3:" in prompt
+    assert "Output violation or no_violation." in prompt
+    assert "Step 5: unknown" not in prompt
 
-    # Check two-stage label mapping
+    # Check native label mapping
     lbl, v, s = guard.parse_native_output("violation")
     assert lbl == "violation" and v == "BLOCK" and s == "success"
 
@@ -46,32 +47,26 @@ def test_dynaguard_adapter_formatting_and_parsing(sample_case):
     guard = DynaGuardBenchmarkGuard(name="dynaguard", config={"enabled": True})
     prompt = guard.format_prompt(sample_case)
 
-    # Check key components of DynaGuard compliance gatekeeper format
-    assert "USER ROLE:" in prompt
-    assert "USER REQUEST:" in prompt
-    assert "CURRENT CONTEXT:" in prompt
-    assert "RELEVANT POLICY:" in prompt
-    assert "PROPOSED ACTION:" in prompt
-    assert "ALLOW" in prompt and "BLOCK" in prompt
+    # Check native DynaGuard [INST] Policy + Dialogue [/INST] <answer> format
+    assert prompt.startswith("[INST] Evaluate the following dialogue for compliance with the given policy.")
+    assert "## Policy" in prompt
+    assert "## Dialogue" in prompt
+    assert "User: As a" in prompt
+    assert "Agent: I am about to" in prompt
+    assert prompt.endswith("[/INST] <answer>")
 
-    # Check two-stage label mapping
-    lbl, v, s = guard.parse_native_output("ALLOW: The teacher has grading privileges.")
-    assert v == "ALLOW" and s == "success"
-
+    # Check native PASS / FAIL label mapping
     lbl, v, s = guard.parse_native_output("PASS")
-    assert v == "ALLOW" and s == "success"
+    assert lbl == "PASS" and v == "ALLOW" and s == "success"
 
-    lbl, v, s = guard.parse_native_output("BLOCK: unauthorized student access.")
-    assert v == "BLOCK" and s == "success"
-
-    lbl, v, s = guard.parse_native_output("BLOCK\nThe student is not allowed to inspect another student's grade records.")
-    assert v == "BLOCK" and s == "success"
+    lbl, v, s = guard.parse_native_output("<answer> PASS")
+    assert lbl == "PASS" and v == "ALLOW" and s == "success"
 
     lbl, v, s = guard.parse_native_output("FAIL")
-    assert v == "BLOCK" and s == "success"
+    assert lbl == "FAIL" and v == "BLOCK" and s == "success"
 
-    lbl, v, s = guard.parse_native_output("ASK for confirmation")
-    assert v == "ASK" and s == "success"
+    lbl, v, s = guard.parse_native_output("<answer> FAIL")
+    assert lbl == "FAIL" and v == "BLOCK" and s == "success"
 
     lbl, v, s = guard.parse_native_output("unknown nonsense")
     assert v == "UNKNOWN" and s == "failed"
@@ -102,6 +97,33 @@ def test_webguard_adapter_formatting_and_parsing(sample_case):
 
     lbl, v, s = guard.parse_native_output("unknown text")
     assert v == "UNKNOWN" and s == "failed"
+
+
+def test_webguard_ablation_native_vs_augmented(sample_case):
+    """Verifies that WebGuard native and augmented produce genuinely distinct prompts."""
+    native_guard = WebGuardBenchmarkGuard(name="webguard_native", config={"enabled": True, "augmented": False})
+    augmented_guard = WebGuardBenchmarkGuard(name="webguard", config={"enabled": True, "augmented": True})
+
+    native_prompt = native_guard.format_prompt(sample_case)
+    augmented_prompt = augmented_guard.format_prompt(sample_case)
+
+    # Native prompt must NOT contain institutional policy or platform state
+    assert "The institutional policy governing this action is:" not in native_prompt
+    assert "The institutional platform state is:" not in native_prompt
+
+    # Augmented prompt MUST contain institutional policy
+    assert "The institutional policy governing this action is:" in augmented_prompt
+
+
+def test_webguard_fail_loud_on_missing_adapter():
+    """Verifies that WebGuard raises FileNotFoundError if configured adapter does not exist."""
+    guard = WebGuardBenchmarkGuard(
+        name="webguard",
+        config={"enabled": True, "adapter_path": "non_existent_lora_directory_12345"}
+    )
+    with pytest.raises(FileNotFoundError) as excinfo:
+        guard.load()
+    assert "does not exist" in str(excinfo.value)
 
 
 def test_runner_model_factory_routing():

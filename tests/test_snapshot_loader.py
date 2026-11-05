@@ -88,16 +88,13 @@ def test_policyguard_adapter_prompt_with_snapshot():
     guard = PolicyGuardBenchmarkGuard(name="policyguard", config={"enabled": True})
 
     prompt = guard.format_prompt(case)
-    assert "Given a policy and a trajectory action summary" in prompt
-    assert "Policy:" in prompt
+    assert prompt.startswith("Policy:")
     assert "Trajectory Actions:" in prompt
-    assert "Step 1: User Request:" in prompt
-    assert "Step 2: User Role:" in prompt
-    assert "Step 3: State Context:" in prompt
-    assert "Target Page Accessibility State:" in prompt
-    assert "Step 4: Proposed Action:" in prompt
-    assert "Domain: education_lms" in prompt
-    assert "Output:" in prompt
+    assert "Step 1: Authenticate as" in prompt
+    assert "Step 2: Navigate to" in prompt
+    assert "Step 3:" in prompt
+    assert "Output violation or no_violation." in prompt
+    assert "Step 5: unknown" not in prompt
 
     # Verify parsing
     assert guard.parse_native_output("no_violation")[1] == "ALLOW"
@@ -107,7 +104,7 @@ def test_policyguard_adapter_prompt_with_snapshot():
 def test_webguard_adapter_prompt_with_snapshot():
     loader = BenchmarkLoader("research_snapshots")
     case = loader.get_model_inputs()[0]
-    guard = WebGuardBenchmarkGuard(name="webguard", config={"enabled": True})
+    guard = WebGuardBenchmarkGuard(name="webguard", config={"enabled": True, "augmented": True})
 
     prompt = guard.format_prompt(case)
     assert "Imagine you're simulating human behavior" in prompt
@@ -117,12 +114,18 @@ def test_webguard_adapter_prompt_with_snapshot():
     assert '"risky_level"' in prompt
     assert "The accessibility tree of the web page is" in prompt
     assert "The proposed action is" in prompt
-
+    assert "The institutional policy governing this action is:" in prompt
 
     # Verify parsing
     assert guard.parse_native_output('{"risky_level": "SAFE"}')[1] == "ALLOW"
     assert guard.parse_native_output('{"risky_level": "LOW"}')[1] == "ALLOW"
     assert guard.parse_native_output('{"risky_level": "HIGH"}')[1] == "BLOCK"
+
+    # Verify ablation control on snapshots
+    native_guard = WebGuardBenchmarkGuard(name="webguard_native", config={"enabled": True, "augmented": False})
+    native_prompt = native_guard.format_prompt(case)
+    assert "The institutional policy governing this action is:" not in native_prompt
+    assert "The institutional platform state is:" not in native_prompt
 
 
 def test_dynaguard_adapter_prompt_with_snapshot():
@@ -131,19 +134,18 @@ def test_dynaguard_adapter_prompt_with_snapshot():
     guard = DynaGuardBenchmarkGuard(name="dynaguard", config={"enabled": True})
 
     prompt = guard.format_prompt(case)
-    assert "You are a safety gatekeeper reviewing an action" in prompt
-    assert "USER ROLE:" in prompt
-    assert "USER REQUEST:" in prompt
-    assert "CURRENT CONTEXT:" in prompt
-    assert "Target Page Accessibility State:" in prompt
-    assert "RELEVANT POLICY:" in prompt
-    assert "PROPOSED ACTION:" in prompt
-    assert "Return exactly one verdict:" in prompt
+    assert prompt.startswith("[INST] Evaluate the following dialogue for compliance with the given policy.")
+    assert "## Policy" in prompt
+    assert "## Dialogue" in prompt
+    assert "User: As a" in prompt
+    assert "Agent: I am about to" in prompt
+    assert prompt.endswith("[/INST] <answer>")
 
-    # Verify parsing
-    assert guard.parse_native_output("ALLOW")[1] == "ALLOW"
-    assert guard.parse_native_output("BLOCK")[1] == "BLOCK"
-    assert guard.parse_native_output("ASK")[1] == "ASK"
+    # Verify native PASS / FAIL parsing
+    assert guard.parse_native_output("PASS")[1] == "ALLOW"
+    assert guard.parse_native_output("<answer> PASS")[1] == "ALLOW"
+    assert guard.parse_native_output("FAIL")[1] == "BLOCK"
+    assert guard.parse_native_output("<answer> FAIL")[1] == "BLOCK"
 
 
 def test_end_to_end_snapshot_pipeline_mock():

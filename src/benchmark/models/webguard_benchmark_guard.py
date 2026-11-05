@@ -1,4 +1,9 @@
-"""WebGuard Benchmark Model Adapter for GuardSLM Benchmark (Text-Only Accessibility Action Guard)."""
+"""WebGuard Benchmark Model Adapter for GuardSLM Benchmark.
+
+Supports two distinct experimental evaluation conditions:
+1. WebGuard Native (augmented=False): Evaluates unaugmented accessibility tree + proposed action.
+2. WebGuard Augmented (augmented=True): Evaluates accessibility tree + proposed action + institutional policy + platform state.
+"""
 
 import json
 import os
@@ -53,10 +58,36 @@ Please present your output in JSON format, following the schema below:
 """
 
 
+def derive_element_metadata(case: Any) -> Tuple[str, str]:
+    """Derives HTML element tagHead and target element description from test case context."""
+    if getattr(case, "is_snapshot", False) or hasattr(case, "target_a11y_tree"):
+        target_res = getattr(case, "target_resource", "").lower()
+        req = (case.user_request or "").lower()
+
+        if any(w in target_res or w in req for w in ["button", "submit", "click", "publish", "save"]):
+            tag_head = "button"
+        elif any(w in target_res or w in req for w in ["link", "view", "open", "browse", "page"]):
+            tag_head = "a"
+        elif any(w in target_res or w in req for w in ["input", "edit", "text", "form", "grade"]):
+            tag_head = "input"
+        elif any(w in target_res for w in ["dropdown", "select"]):
+            tag_head = "select"
+        else:
+            tag_head = "button"
+
+        desc = getattr(case, "target_resource", "") or case.user_request or "target UI element"
+        return tag_head, desc
+
+    target_dict = case.proposed_action.target if isinstance(case.proposed_action.target, dict) else {}
+    tag_head = target_dict.get("element_type", "button") if isinstance(target_dict, dict) else "button"
+    desc = target_dict.get("label", case.user_request or "target element")
+    return tag_head, desc
+
+
 def format_webguard_user_content(
     accessibility_tree: str,
     proposed_action: str,
-    description: str = "nan",
+    description: str = "target element",
     tag_head: str = "button",
     url: str = "https://lms.university.edu",
     policy: Optional[str] = None,
@@ -64,8 +95,8 @@ def format_webguard_user_content(
 ) -> str:
     """Formats a web interaction into WebGuard's input format.
 
-    If policy or platform_state are provided, includes them as institutional context
-    grounding (Augmented mode). Otherwise, retains original unaugmented WebGuard format.
+    - Unaugmented (native): policy=None and platform_state=None.
+    - Augmented: policy and platform_state are included as institutional context grounding.
     """
     context_lines = []
     if policy:
@@ -91,13 +122,13 @@ def format_webguard_user_content(
 def format_webguard_messages(
     accessibility_tree: str,
     proposed_action: str,
-    description: str = "nan",
+    description: str = "target element",
     tag_head: str = "button",
     url: str = "https://lms.university.edu",
     policy: Optional[str] = None,
     platform_state: Any = None
 ) -> List[Dict[str, str]]:
-    """Returns standard chat messages for WebGuard (unaugmented or augmented)."""
+    """Returns standard chat messages for WebGuard."""
     user_content = format_webguard_user_content(
         accessibility_tree=accessibility_tree,
         proposed_action=proposed_action,
@@ -155,12 +186,17 @@ def parse_webguard_output(raw_text: str) -> Tuple[str, str, str]:
 
 
 class WebGuardBenchmarkGuard(BenchmarkModel):
-    """Adapter for WebGuard-3B (Qwen2.5-3B + WebGuard a11y LoRA) using native accessibility tree format."""
+    """Adapter for WebGuard-3B (Qwen2.5-3B + WebGuard a11y LoRA).
+
+    Supports:
+    - augmented: true  (A11y tree + action + policy + state)
+    - augmented: false (A11y tree + action only: native baseline)
+    """
 
     def __init__(self, name: str = "webguard", config: Optional[Dict[str, Any]] = None):
         super().__init__(name=name, config=config)
         self.checkpoint = self.config.get("checkpoint", "Qwen/Qwen2.5-3B-Instruct")
-        self.adapter_path = self.config.get("adapter_path", "models/webguard_qwen_lora")
+        self.adapter_path = self.config.get("adapter_path", None)
         self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.augmented = self.config.get("augmented", True)
         self.hf_token = self.config.get("hf_token", None)
@@ -171,12 +207,25 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         if not self.config.get("enabled", True):
             raise NotImplementedError("WebGuard adapter is disabled in config/models.yaml.")
 
+        # Fail-loud adapter path validation: check existence before loading weights
+        if self.adapter_path:
+            if not os.path.exists(self.adapter_path):
+                raise FileNotFoundError(
+                    f"Configured WebGuard LoRA adapter path '{self.adapter_path}' does not exist. "
+                    f"Set adapter_path: null in config/models.yaml if you intend to evaluate the base model."
+                )
+            adapter_cfg = os.path.join(self.adapter_path, "adapter_config.json")
+            if not os.path.exists(adapter_cfg):
+                raise FileNotFoundError(
+                    f"WebGuard adapter configuration file '{adapter_cfg}' was not found in '{self.adapter_path}'."
+                )
+
         import torch
         from transformers import AutoTokenizer, AutoModelForCausalLM
 
         tok_path = (
             self.adapter_path
-            if os.path.exists(os.path.join(self.adapter_path, "tokenizer_config.json"))
+            if self.adapter_path and os.path.exists(os.path.join(self.adapter_path, "tokenizer_config.json"))
             else self.checkpoint
         )
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -206,36 +255,53 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
 
         base_model = AutoModelForCausalLM.from_pretrained(self.checkpoint, **kwargs)
 
-        # Check for LoRA adapter
-        if os.path.exists(self.adapter_path) and os.path.exists(os.path.join(self.adapter_path, "adapter_config.json")):
-            try:
-                from peft import PeftModel
-                self.model = PeftModel.from_pretrained(base_model, self.adapter_path)
-            except Exception:
-                self.model = base_model
+        # Fail-loud adapter loading: do not silently fall back to base model if configured adapter is missing
+        if self.adapter_path:
+            if not os.path.exists(self.adapter_path):
+                raise FileNotFoundError(
+                    f"Configured WebGuard LoRA adapter path '{self.adapter_path}' does not exist. "
+                    f"Set adapter_path: null in config/models.yaml if you intend to evaluate the base model."
+                )
+            adapter_cfg = os.path.join(self.adapter_path, "adapter_config.json")
+            if not os.path.exists(adapter_cfg):
+                raise FileNotFoundError(
+                    f"WebGuard adapter configuration file '{adapter_cfg}' was not found in '{self.adapter_path}'."
+                )
+            from peft import PeftModel
+            self.model = PeftModel.from_pretrained(base_model, self.adapter_path)
+            print(f"Loaded WebGuard LoRA adapter from {self.adapter_path}")
         else:
             self.model = base_model
+            print(f"Loaded base model {self.checkpoint} (native/unaugmented mode, no adapter)")
 
     def format_prompt(self, case: Any) -> str:
-        """Formats case into WebGuard's native accessibility tree prompt."""
+        """Formats case into WebGuard's native accessibility tree prompt, strictly respecting self.augmented."""
+        tag_head, desc = derive_element_metadata(case)
+
         if getattr(case, "is_snapshot", False) or hasattr(case, "target_a11y_tree"):
             # Snapshot case with authentic Playwright accessibility tree
             a11y_tree = getattr(case, "target_a11y_tree", "")
-            user_req = case.user_request or "nan"
+            user_req = case.user_request or "interact"
             target_res = getattr(case, "target_resource", "")
             proposed_action_str = f"{user_req} on target {target_res}".strip()
             course_scope = getattr(case, "course_or_scope", "LMS")
             url = f"http://localhost:5173/courses/{course_scope}"
-            policy_str = getattr(case, "policy_context", "") or " | ".join(case.policy_info)
+
+            # Strict ablation control: only include policy & platform state if self.augmented is True
+            policy_str = None
+            platform_state = None
+            if self.augmented:
+                policy_str = getattr(case, "policy_context", "") or " | ".join(case.policy_info)
+                platform_state = case.state_context
 
             content = format_webguard_user_content(
                 accessibility_tree=a11y_tree,
                 proposed_action=proposed_action_str,
-                description=user_req,
-                tag_head="button",
+                description=desc,
+                tag_head=tag_head,
                 url=url,
                 policy=policy_str,
-                platform_state=case.state_context
+                platform_state=platform_state
             )
             return content
 
@@ -254,9 +320,6 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         target_dict = case.proposed_action.target if isinstance(case.proposed_action.target, dict) else {}
         target_str = json.dumps(target_dict)
         proposed_action_str = f"{operation} {target_str}".strip()
-
-        tag_head = target_dict.get("element_type", "button") if isinstance(target_dict, dict) else "button"
-        desc = case.user_request or "nan"
         url = f"https://lms.university.edu/{case.resource_context.get('course_id', 'course')}/{case.resource_context.get('resource_type', 'view')}"
 
         policy_str = None
@@ -337,8 +400,8 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
             applicable_policy_ids=[],
             violated_policy_ids=[],
             policy_checks=policy_checks,
-            evidence=[],
-            rationale=f"WebGuard native risk: {risky_level} -> Mapped verdict: {mapped_verdict}",
+            evidence=[f"risky_level:{risky_level}"],
+            rationale=f"WebGuard native risk: {risky_level} -> Authorization decision: {mapped_verdict}",
             parse_status=parse_status,
             validation_errors=[] if parse_status != "failed" else [f"Could not parse WebGuard risk level from '{raw_text}'"],
             raw_response=raw_text
