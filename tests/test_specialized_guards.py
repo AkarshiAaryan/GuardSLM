@@ -64,6 +64,9 @@ def test_dynaguard_adapter_formatting_and_parsing(sample_case):
     lbl, v, s = guard.parse_native_output("BLOCK: unauthorized student access.")
     assert v == "BLOCK" and s == "success"
 
+    lbl, v, s = guard.parse_native_output("BLOCK\nThe student is not allowed to inspect another student's grade records.")
+    assert v == "BLOCK" and s == "success"
+
     lbl, v, s = guard.parse_native_output("FAIL")
     assert v == "BLOCK" and s == "success"
 

@@ -1,6 +1,7 @@
 """DynaGuard Benchmark Model Adapter for GuardSLM Benchmark (Text-Only Compliance Gatekeeper)."""
 
 import json
+import re
 import time
 from typing import Dict, Any, Optional, Tuple
 from .base import BenchmarkModel, BenchmarkPrediction
@@ -112,14 +113,28 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
 
     def parse_native_output(self, raw_text: str) -> Tuple[str, str, str]:
         """Custom parser for DynaGuard output (PASS/ALLOW -> ALLOW, FAIL/BLOCK -> BLOCK, ASK -> ASK)."""
-        text_upper = raw_text.strip().upper()
+        text = raw_text.strip()
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        if lines:
+            first_line = lines[0].upper()
+            if re.search(r'\b(BLOCK|FAIL|UNSAFE)\b', first_line):
+                return "BLOCK", "BLOCK", "success"
+            elif re.search(r'\b(ALLOW|PASS|SAFE)\b', first_line):
+                return "ALLOW", "ALLOW", "success"
+            elif re.search(r'\bASK\b', first_line):
+                return "ASK", "ASK", "success"
 
-        if "ALLOW" in text_upper or "PASS" in text_upper or "SAFE" in text_upper:
-            return "ALLOW", "ALLOW", "success"
-        elif "BLOCK" in text_upper or "FAIL" in text_upper or "UNSAFE" in text_upper:
-            return "BLOCK", "BLOCK", "success"
-        elif "ASK" in text_upper:
-            return "ASK", "ASK", "success"
+        # Fallback to search first standalone verdict keyword in text
+        match = re.search(r'\b(BLOCK|ALLOW|ASK|PASS|FAIL)\b', text, re.IGNORECASE)
+        if match:
+            v = match.group(1).upper()
+            if v in ("BLOCK", "FAIL"):
+                return "BLOCK", "BLOCK", "success"
+            elif v in ("ALLOW", "PASS"):
+                return "ALLOW", "ALLOW", "success"
+            elif v == "ASK":
+                return "ASK", "ASK", "success"
+
         return "UNKNOWN", "UNKNOWN", "failed"
 
     def predict(

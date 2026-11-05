@@ -112,7 +112,7 @@ def parse_webguard_output(raw_text: str) -> Tuple[str, str, str]:
     """
     text = raw_text.strip()
     
-    # Try exact JSON parsing
+    # 1. Try exact JSON parsing
     json_match = re.search(r'\{.*?"risky_level"\s*:\s*"([A-Za-z]+)".*?\}', text, re.DOTALL)
     if json_match:
         risk = json_match.group(1).upper()
@@ -120,18 +120,25 @@ def parse_webguard_output(raw_text: str) -> Tuple[str, str, str]:
             return risk, "ALLOW", "success"
         elif risk == "HIGH":
             return risk, "BLOCK", "success"
-            
-    # Try direct keyword search
-    text_upper = text.upper()
-    if "HIGH" in text_upper:
-        return "HIGH", "BLOCK", "success"
-    elif "SAFE" in text_upper:
-        return "SAFE", "ALLOW", "success"
-    elif "LOW" in text_upper:
-        return "LOW", "ALLOW", "success"
-    elif "BLOCK" in text_upper:
-        return "HIGH", "BLOCK", "success"
-    elif "ALLOW" in text_upper:
-        return "SAFE", "ALLOW", "success"
+
+    # 2. Check first line or standalone whole-word risk token
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if lines:
+        first_line = lines[0].upper()
+        if re.search(r'\bHIGH\b', first_line):
+            return "HIGH", "BLOCK", "success"
+        elif re.search(r'\b(SAFE|LOW)\b', first_line):
+            risk = "SAFE" if "SAFE" in first_line else "LOW"
+            return risk, "ALLOW", "success"
+
+    # 3. Fallback to first standalone risk keyword
+    match = re.search(r'\b(HIGH|SAFE|LOW|BLOCK|ALLOW)\b', text, re.IGNORECASE)
+    if match:
+        token = match.group(1).upper()
+        if token in ("HIGH", "BLOCK"):
+            return "HIGH", "BLOCK", "success"
+        elif token in ("SAFE", "LOW", "ALLOW"):
+            risk = "SAFE" if token in ("SAFE", "ALLOW") else "LOW"
+            return risk, "ALLOW", "success"
         
     return "UNKNOWN", "UNKNOWN", "failed"
