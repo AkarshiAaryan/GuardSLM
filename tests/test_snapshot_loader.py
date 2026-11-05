@@ -72,18 +72,14 @@ def test_ground_truth_oracle_isolation():
     assert golds["TC13"].verdict == "ALLOW"
 
 
-def test_pair_registry_counterfactual_pairs():
+def test_independent_cases_no_artificial_pairs():
     loader = BenchmarkLoader("research_snapshots")
     pairs = loader.get_pair_registry()
-    assert len(pairs) == 10
+    assert len(pairs) == 0, "Pair registry should be empty for independent research snapshots"
 
-    # Verify PAIR-01 (TC01 vs TC02)
-    p1 = pairs["PAIR-01"]
-    assert p1.value_A == "TC01"
-    assert p1.value_B == "TC02"
-    assert p1.expected_verdict_A == "ALLOW"
-    assert p1.expected_verdict_B == "BLOCK"
-    assert p1.pair_type == "authorization_flip"
+    cases = loader.get_model_inputs()
+    for c in cases:
+        assert c.pair_id == "", f"Case {c.case_id} has non-empty pair_id!"
 
 
 def test_policyguard_adapter_prompt_with_snapshot():
@@ -167,8 +163,8 @@ def test_end_to_end_snapshot_pipeline_mock():
         text_res = results["text_only"]
         assert text_res["total_cases_evaluated"] == 20
         assert text_res["decision_performance"]["accuracy"] == 1.0
-        assert text_res["matched_pair_performance"]["total_pairs"] == 10
-        assert text_res["matched_pair_performance"]["total_correct_pairs"] == 10
+        assert text_res["matched_pair_performance"]["total_pairs"] == 0
+        assert text_res["matched_pair_performance"]["total_correct_pairs"] == 0
 
         # Verify disk outputs
         assert os.path.isfile(os.path.join(temp_dir, "report_text_only.md"))
