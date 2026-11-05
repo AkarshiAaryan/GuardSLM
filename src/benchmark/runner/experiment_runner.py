@@ -43,7 +43,7 @@ def build_model_instance(
 
 
 def run_benchmark_experiment(
-    dataset_path: str = "data/GuardSLM_v3_Single_Master_Dataset.json",
+    dataset_path: str = "research_snapshots",
     model_name: str = "mock_guard",
     model_config: Optional[Dict[str, Any]] = None,
     strategy: str = "text_only",
@@ -53,9 +53,11 @@ def run_benchmark_experiment(
     resume: bool = True
 ) -> Dict[str, Any]:
     """Runs the benchmark pipeline for text-only cases with checkpoint resumption."""
-    loader = BenchmarkLoader(dataset_path=dataset_path, validate_on_load=True)
+    is_dir = os.path.isdir(dataset_path)
+    loader = BenchmarkLoader(dataset_path=dataset_path, validate_on_load=(not is_dir))
     cases = loader.get_model_inputs(case_ids=case_ids, limit=limit)
     golds = loader.get_gold_annotations()
+
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     exp_id = f"{timestamp}_{model_name}_{strategy}"
@@ -137,8 +139,8 @@ def run_benchmark_experiment(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GuardSLM v3 Text-Only Benchmark Experiment Runner.")
-    parser.add_argument("--dataset", type=str, default="data/GuardSLM_v3_Single_Master_Dataset.json")
+    parser = argparse.ArgumentParser(description="GuardSLM LMS Snapshot Benchmark Experiment Runner.")
+    parser.add_argument("--dataset", type=str, default="research_snapshots")
     parser.add_argument("--model", type=str, default="mock_guard")
     parser.add_argument("--strategy", type=str, default="text_only", choices=["text_only"])
     parser.add_argument("--case-ids", type=str, default=None, help="Comma-separated case IDs to run.")

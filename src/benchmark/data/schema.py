@@ -291,8 +291,8 @@ class PairRegistryEntry:
     value_B: Any
     expected_verdict_A: str
     expected_verdict_B: str
-    violated_policy_ids_A: List[str]
-    violated_policy_ids_B: List[str]
+    violated_policy_ids_A: List[str] = field(default_factory=list)
+    violated_policy_ids_B: List[str] = field(default_factory=list)
     source_screenshot_A: Dict[str, Any] = field(default_factory=dict)
     source_screenshot_B: Dict[str, Any] = field(default_factory=dict)
     visual_support_level: str = ""
@@ -322,3 +322,144 @@ class PairRegistryEntry:
             pair_quality_note=d.get("pair_quality_note", ""),
             one_factor_design=d.get("one_factor_design", "")
         )
+
+
+@dataclass
+class SnapshotInputCase:
+    """Benchmark test case accompanied by authentic Playwright accessibility tree snapshots."""
+    case_id: str
+    title: str
+    account: str
+    global_role: str
+    effective_role: str
+    membership: str
+    timestamp: str
+    timezone: str
+    deadline_ts: str
+    course_or_scope: str
+    target_resource: str
+    requested_operation: str
+    target_owner: str
+    policy_context: str
+    target_a11y_tree: str
+    policy_a11y_tree: str = ""
+    pair_id: str = ""
+    variant: str = ""
+    is_snapshot: bool = True
+
+    # Standardized properties compatible with ModelInputCase
+    @property
+    def user_request(self) -> str:
+        return self.requested_operation
+
+    @property
+    def authenticated_role(self) -> str:
+        return self.effective_role
+
+    @property
+    def policy_info(self) -> List[str]:
+        lines = [p.strip() for p in self.policy_context.split("\n\n") if p.strip()]
+        return lines if lines else [self.policy_context]
+
+    @property
+    def page_context(self) -> Dict[str, Any]:
+        return {
+            "user_request": self.requested_operation,
+            "target": {
+                "resource": {"course_id": self.course_or_scope, "resource": self.target_resource},
+                "state": {"timestamp": self.timestamp, "deadline": self.deadline_ts}
+            },
+            "proposed_action": {
+                "operation": self.requested_operation,
+                "target": {"resource": self.target_resource, "owner": self.target_owner}
+            },
+            "page": {
+                "course_context": self.course_or_scope,
+                "page_type": "lms_page",
+                "visible_controls": self.target_resource
+            },
+            "target_a11y_tree": self.target_a11y_tree,
+            "policy_a11y_tree": self.policy_a11y_tree
+        }
+
+    @property
+    def actor_info(self) -> Dict[str, Any]:
+        return {
+            "account": self.account,
+            "global_role": self.global_role,
+            "effective_role": self.effective_role,
+            "membership": self.membership
+        }
+
+    @property
+    def proposed_action(self) -> ProposedAction:
+        return ProposedAction(
+            operation=self.requested_operation,
+            target={"resource": self.target_resource, "owner": self.target_owner}
+        )
+
+    @property
+    def state_context(self) -> Dict[str, Any]:
+        return {
+            "timestamp": self.timestamp,
+            "deadline": self.deadline_ts,
+            "membership": self.membership
+        }
+
+    @property
+    def resource_context(self) -> Dict[str, Any]:
+        return {
+            "course_id": self.course_or_scope,
+            "resource": self.target_resource
+        }
+
+    @property
+    def policy_book(self) -> List[PolicyClause]:
+        return [
+            PolicyClause(policy_id=f"POL-{i+1:02d}", statement=s, name=f"Policy {i+1}")
+            for i, s in enumerate(self.policy_info)
+        ]
+
+    @property
+    def page_observation(self) -> Any:
+        return type("PageObservationProxy", (), {
+            "text_only_representation": type("TextRepProxy", (), {
+                "page_type": "lms_page",
+                "course_context": self.course_or_scope,
+                "visible_controls": self.target_resource,
+                "evidence_class": "accessibility_tree",
+                "known_limitations": ""
+            })(),
+            "fixture_state_facts": self.state_context,
+            "inferred_accessibility_tree": self.target_a11y_tree,
+            "original_pdf_screenshots": []
+        })()
+
+    def to_sanitized_dict(self) -> Dict[str, Any]:
+
+        """Strict zero gold leakage representation of snapshot case."""
+        return {
+            "case_id": self.case_id,
+            "title": self.title,
+            "actor": {
+                "account": self.account,
+                "global_role": self.global_role,
+                "effective_role": self.effective_role,
+                "membership": self.membership
+            },
+            "decision_time": {
+                "timestamp": self.timestamp,
+                "timezone": self.timezone,
+                "deadline": self.deadline_ts
+            },
+            "target_and_action": {
+                "course_or_scope": self.course_or_scope,
+                "target_resource": self.target_resource,
+                "requested_operation": self.requested_operation,
+                "target_owner": self.target_owner
+            },
+            "policy_context": self.policy_context,
+            "target_a11y_tree": self.target_a11y_tree,
+            "policy_a11y_tree": self.policy_a11y_tree
+        }
+

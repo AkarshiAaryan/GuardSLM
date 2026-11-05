@@ -78,8 +78,29 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         else:
             self.model = base_model
 
-    def format_prompt(self, case: ModelInputCase) -> str:
+    def format_prompt(self, case: Any) -> str:
         """Formats case into WebGuard's native accessibility tree prompt."""
+        if getattr(case, "is_snapshot", False) or hasattr(case, "target_a11y_tree"):
+            # Snapshot case with authentic Playwright accessibility tree
+            a11y_tree = getattr(case, "target_a11y_tree", "")
+            user_req = case.user_request or "nan"
+            target_res = getattr(case, "target_resource", "")
+            proposed_action_str = f"{user_req} on target {target_res}".strip()
+            course_scope = getattr(case, "course_or_scope", "LMS")
+            url = f"http://localhost:5173/courses/{course_scope}"
+            policy_str = getattr(case, "policy_context", "") or " | ".join(case.policy_info)
+
+            content = format_webguard_user_content(
+                accessibility_tree=a11y_tree,
+                proposed_action=proposed_action_str,
+                description=user_req,
+                tag_head="button",
+                url=url,
+                policy=policy_str,
+                moodle_state=case.state_context
+            )
+            return content
+
         page_dict = case.page_context.get("page", {}) if isinstance(case.page_context, dict) else {}
         page_type = page_dict.get("page_type") or "page"
         course_ctx = page_dict.get("course_context") or ""
@@ -117,6 +138,7 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
             moodle_state=moodle_state
         )
         return content
+
 
     def parse_native_output(self, raw_text: str) -> Tuple[str, str, str]:
         """Maps WebGuard output (SAFE / LOW -> ALLOW, HIGH -> BLOCK)."""

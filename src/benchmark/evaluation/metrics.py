@@ -194,11 +194,12 @@ def calculate_matched_pair_metrics(
     family_performance: Dict[str, Dict[str, int]] = defaultdict(lambda: {"total_pairs": 0, "correct_pairs": 0})
 
     for pid, pair_info in pair_registry.items():
-        ca_id = f"{pid}-A"
-        cb_id = f"{pid}-B"
+        ca_id = pair_info.value_A if (isinstance(pair_info.value_A, str) and pair_info.value_A in pred_map) else f"{pid}-A"
+        cb_id = pair_info.value_B if (isinstance(pair_info.value_B, str) and pair_info.value_B in pred_map) else f"{pid}-B"
 
         if ca_id not in pred_map or cb_id not in pred_map:
             continue
+
 
         pred_a = pred_map[ca_id]
         pred_b = pred_map[cb_id]

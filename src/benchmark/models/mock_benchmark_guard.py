@@ -21,7 +21,7 @@ class MockBenchmarkGuard(BenchmarkModel):
 
     def predict(
         self,
-        case: ModelInputCase,
+        case: Any,
         strategy: str = "text_only",
         screenshot_path: Optional[str] = None
     ) -> BenchmarkPrediction:
