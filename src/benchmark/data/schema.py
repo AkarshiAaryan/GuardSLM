@@ -11,7 +11,7 @@ class PolicyClause:
     name: str = ""
     category: str = ""
     rationale: str = ""
-    moodle_capability_or_fixture_fact: str = ""
+    system_capability_or_fixture_fact: str = ""
     enforcement_level: str = "mandatory"
     source_pdf_pages_cited: List[str] = field(default_factory=list)
     raw_dict: Dict[str, Any] = field(default_factory=dict)
@@ -24,7 +24,7 @@ class PolicyClause:
             category=d.get("category", ""),
             statement=d.get("statement", d.get("policy_text", "")),
             rationale=d.get("rationale", ""),
-            moodle_capability_or_fixture_fact=d.get("moodle_capability_or_fixture_fact", ""),
+            system_capability_or_fixture_fact=d.get("system_capability_or_fixture_fact", d.get("capability_or_fixture_fact", "")),
             enforcement_level=d.get("enforcement_level", "mandatory"),
             source_pdf_pages_cited=d.get("source_pdf_pages_cited", []),
             raw_dict=d

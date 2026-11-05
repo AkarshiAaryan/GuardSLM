@@ -1,4 +1,4 @@
-"""Screenshot Resolver: Maps canonical case references to lossless Moodle page PNGs."""
+"""Screenshot Resolver: Maps canonical case references to lossless page PNGs."""
 
 import os
 import shutil

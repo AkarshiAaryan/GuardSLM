@@ -81,7 +81,7 @@ class PolicyGuardBenchmarkGuard(BenchmarkModel):
                 f"Step 4: Proposed Action: {action_str}\n"
                 f"Step 5: unknown\n\n"
                 f"Domain: education_lms\n"
-                f"Subdomain: moodle\n\n"
+                f"Subdomain: lms\n\n"
                 f"Output:"
             )
             return prompt
@@ -107,7 +107,7 @@ class PolicyGuardBenchmarkGuard(BenchmarkModel):
             f"Step 4: Proposed Action: {action_str}\n"
             f"Step 5: unknown\n\n"
             f"Domain: education_lms\n"
-            f"Subdomain: moodle\n\n"
+            f"Subdomain: lms\n\n"
             f"Output:"
         )
         return prompt

@@ -48,7 +48,7 @@
                   "accessibility_tree": { "type": "string" }
                 }
               },
-              "moodle_state": { "type": "object" },
+              "platform_state": { "type": "object" },
               "policy": { "type": "string" }
             }
           },

@@ -9,9 +9,8 @@ evaluation:
   max_new_tokens: 256
 
 paths:
-  schema: schemas/test_case_schema.json
-  dummy_cases: data/dummy/dummy_cases.json
-  pilot_cases: data/pilot/pilot_cases.json
-  results: data/results
+  snapshots: research_snapshots
+  canonical_dataset: data/GuardSLM_v3_Single_Master_Dataset.json
+  benchmark_results: data/benchmark_results
   reports: reports
   prompts: prompts

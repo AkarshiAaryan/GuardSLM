@@ -2,18 +2,18 @@
 
 **Validation Status:** 🟢 **PASS**  
 **Checks Passed:** 13 / 13  
-**Dataset Name:** `GuardSLM Moodle Browser-Action Authorization Benchmark`  
+**Dataset Name:** `GuardSLM Browser-Action Authorization Benchmark`  
 **Dataset Version:** `2.0.0-provisional`  
 
 > [!IMPORTANT]
-> **Provisional Gold Notice**: Structural validation confirms schema compliance, relational pair integrity, policy coverage, and screenshot mapping. Ground-truth gold labels remain provisional until independently adjudicated against the live Moodle fixture.
+> **Provisional Gold Notice**: Structural validation confirms schema compliance, relational pair integrity, policy coverage, and screenshot mapping. Ground-truth gold labels remain provisional until independently adjudicated against the live platform fixture.
 
 ## 1. Verified Inventory Summary
 
 | Benchmark Dimension | Verified Value | Expected Standard | Status |
 | :--- | :---: | :---: | :---: |
 | **Policy Clauses** | 36 | 36 | ✅ OK |
-| **Source Moodle PDFs** | 6 | 6 | ✅ OK |
+| **Source PDFs** | 6 | 6 | ✅ OK |
 | **Individual Cases** | 200 | 200 | ✅ OK |
 | **Matched Pairs** | 100 | 100 | ✅ OK |
 | **Authorization Flip Pairs** | 80 | 80 | ✅ OK |

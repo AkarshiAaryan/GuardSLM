@@ -1,7 +1,7 @@
 # GuardSLM: Context-Aware Safety & Authorization Gatekeeping for LMS Web Agents
 
 **Document Type:** Technical Architecture, Research Methodology & Evaluation Specification  
-**Project Identifier:** GuardSLM Pilot (Moodle LMS Safety Gatekeeper)  
+**Project Identifier:** GuardSLM Pilot (LMS Safety Gatekeeper)  
 **Target Audience:** Research Supervisors, Engineering Teams, Downstream Report Generators  
 **Version:** 1.0 (Post-Pilot Evaluation Specification)
 
@@ -10,7 +10,7 @@
 ## 1. Executive Summary & Core Research Objectives
 
 ### 1.1 The Problem: The Authorization Dilemma in Web Agents
-Autonomous AI agents interacting with web platforms (e.g., Learning Management Systems like Moodle or Canvas) execute actions by triggering API requests or interacting with UI elements (DOM clicks, form entries). 
+Autonomous AI agents interacting with web platforms (e.g., Learning Management Systems like LMS or Canvas) execute actions by triggering API requests or interacting with UI elements (DOM clicks, form entries). 
 
 In institutional environments, an action is **rarely inherently harmful or safe in isolation**:
 - Clicking `"Submit answer"` is safe and expected on an ungraded **Practice Quiz**.
@@ -40,7 +40,7 @@ flowchart TD
     subgraph Input Multi-Modal Context
         R["User Role & Request"]
         P["Institutional Policy Text"]
-        S["Moodle DB State JSON"]
+        S["LMS DB State JSON"]
         UI["DOM Accessibility Tree & URL"]
         A["Proposed Agent Action"]
     end
@@ -68,10 +68,10 @@ flowchart TD
 
 ### 2.1 Component Modules
 1. **`src/data/loader.py` & `src/data/validator.py`**:
-   - Ingests structured test cases from `data/moodle_cases.json`.
+   - Ingests structured test cases from `data/lms_cases.json`.
    - Validates schema conformity, role mappings, and matched-pair integrity.
 2. **`src/prompts/renderer.py` & `prompts/base_guard_prompt.txt`**:
-   - Formats unified prompts for baseline models, combining user metadata, accessibility tree, Moodle state, policy, and tool actions.
+   - Formats unified prompts for baseline models, combining user metadata, accessibility tree, LMS state, policy, and tool actions.
 3. **`src/models/` (Model Adapters)**:
    - Inherit from abstract class `GuardModel` (`src/models/base.py`).
    - Implement lifecycle hooks: `load()`, `predict()`, and `unload()` to optimize VRAM caching and prevent Out-Of-Memory (OOM) crashes on T4 GPUs.
@@ -91,7 +91,7 @@ Traditional machine learning benchmarks report **Single-Item Accuracy**, which i
 - Neither model possesses any understanding of context or safety.
 
 ### 3.1 The Matched-Pair Structure
-GuardSLM evaluates models on **40 Controlled Matched Pairs (80 Total Cases)** constructed directly from authentic Moodle LMS environments.
+GuardSLM evaluates models on **40 Controlled Matched Pairs (80 Total Cases)** constructed directly from authentic LMS environments.
 
 Every pair contains two nearly identical twins:
 - **Case Variant A (UNSAFE $\rightarrow$ Ground Truth: `BLOCK`)**: The action violates course or system policy.
@@ -117,7 +117,7 @@ The dataset covers 8 core administrative and academic workflows (5 pairs / 10 ca
 
 ### 4.1 Qwen 2.5 Instruct Baselines (`0.5B`, `1.5B`, `3B`, `7B 4-bit`)
 * **Objective:** Establish the scaling laws of general-purpose instruction-tuned SLMs acting as zero-shot security gatekeepers.
-* **Prompt Format:** Ingests Role, Request, Web Context (a11y tree), Moodle State JSON, Policy Text, and Proposed Action using official `tokenizer.apply_chat_template()`.
+* **Prompt Format:** Ingests Role, Request, Web Context (a11y tree), LMS State JSON, Policy Text, and Proposed Action using official `tokenizer.apply_chat_template()`.
 * **Output:** Constrained to `ALLOW`, `BLOCK`, or `ASK`.
 
 ### 4.2 PolicyGuard-4B (`Rakancorle1/PolicyGuard-4B`)
@@ -133,12 +133,12 @@ The dataset covers 8 core administrative and academic workflows (5 pairs / 10 ca
 To isolate why web safety models struggle with institutional authorization, WebGuard is evaluated in two distinct configurations:
 1. **Unaugmented (Baseline WebGuard):**
    - Ingests only visual DOM data: Accessibility tree, proposed button click, URL, and tag metadata.
-   - **Completely blind** to the institutional policy text and Moodle database state.
+   - **Completely blind** to the institutional policy text and LMS database state.
 2. **Augmented (Context-Aware WebGuard):**
    - Preserves WebGuard's authentic system prompt and JSON schema, but injects:
      ```text
      The institutional policy governing this action is: {policy}
-     The institutional platform state is: {moodle_state}
+     The institutional platform state is: {lms_state}
      ```
    - Directly tests whether providing policy and state enables a consequence classifier to distinguish authorization boundaries.
 

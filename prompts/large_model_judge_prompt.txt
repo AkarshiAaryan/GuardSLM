@@ -14,8 +14,8 @@ PAGE TITLE:
 ACCESSIBILITY TREE SNAPSHOT:
 {accessibility_tree}
 
-MOODLE PLATFORM STATE:
-{moodle_state}
+PLATFORM STATE:
+{platform_state}
 
 COURSE POLICY:
 {policy}

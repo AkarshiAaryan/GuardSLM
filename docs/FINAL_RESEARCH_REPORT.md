@@ -3,14 +3,14 @@
 **Project Title:** Context-Aware Small Language Models as Authorization & Safety Gatekeepers in Educational Platforms  
 **Evaluation Date:** October 13, 2026  
 **Hardware Environment:** Google Colab (NVIDIA Tesla T4 GPU, 15.6 GB VRAM)  
-**Dataset:** 40 Matched Pairs / 80 Controlled Test Cases across 8 Moodle LMS Administrative & Academic Templates  
+**Dataset:** 40 Matched Pairs / 80 Controlled Test Cases across 8 LMS Administrative & Academic Templates  
 **Target Decision Gate:** Pair Accuracy $\ge 80.0\%$, Context Flip Rate $\ge 80.0\%$, False Allows $\le 5$
 
 ---
 
 ## 1. Executive Summary & Core Verdict
 
-This report presents the complete empirical findings of the **GuardSLM Pilot Benchmark**, evaluating whether open-source Small Language Models (SLMs) and existing agent guardrails can serve as real-time, context-aware permission gatekeepers for autonomous AI agents operating within Learning Management Systems (Moodle LMS).
+This report presents the complete empirical findings of the **GuardSLM Pilot Benchmark**, evaluating whether open-source Small Language Models (SLMs) and existing agent guardrails can serve as real-time, context-aware permission gatekeepers for autonomous AI agents operating within Learning Management Systems (LMS).
 
 ### Key Findings:
 1. **Decision Gate Status: FAIL (All Models Fell Short of the 80% Gate):**
@@ -18,7 +18,7 @@ This report presents the complete empirical findings of the **GuardSLM Pilot Ben
 2. **The "Single-Item Accuracy Mirage" (Novelty N2 Validation):**
    Standard single-item accuracy severely overstates guardrail competency. For example, Qwen 2.5 0.5B scored $60.0\%$ Overall Accuracy but collapsed to **$22.5\%$ Pair Accuracy** (worse than random guessing on balanced binary pairs, which is $25.0\%$).
 3. **The WebGuard Dual-Grounding Ablation (Core Contribution):**
-   When evaluated using its official, unaugmented visual-web input format (A11y tree + action only), WebGuard scored **$12.5\%$ Pair Accuracy**, failing on every workflow except where surface keywords leaked into the page title. When augmented with **Institutional Policy Text and Backend Moodle State**, Pair Accuracy more than tripled to **$40.0\%$** (and Overall Accuracy rose to **$70.0\%$**). This proves that web agent authorization cannot rely on UI action inspection alone; it fundamentally requires backend state ingestion.
+   When evaluated using its official, unaugmented visual-web input format (A11y tree + action only), WebGuard scored **$12.5\%$ Pair Accuracy**, failing on every workflow except where surface keywords leaked into the page title. When augmented with **Institutional Policy Text and Backend LMS State**, Pair Accuracy more than tripled to **$40.0\%$** (and Overall Accuracy rose to **$70.0\%$**). This proves that web agent authorization cannot rely on UI action inspection alone; it fundamentally requires backend state ingestion.
 4. **Opposing Failure Modes Across Model Families:**
    - **Under-blockers (Security Hazards):** Smaller Qwen models ($0.5\text{B}$ with 26 False Allows, $1.5\text{B}$ with 22 False Allows) and Unaugmented WebGuard (30 False Allows) suffer from compliance bias, allowing dangerous actions through.
    - **Over-blockers (Usability Disruption):** PolicyGuard-4B achieved **0 False Allows** but produced **30 False Blocks** ($25.0\%$ Pair Accuracy), rejecting legitimate educational tasks. Qwen 2.5 3B produced **29 False Blocks** ($17.5\%$ Pair Accuracy).
@@ -27,7 +27,7 @@ This report presents the complete empirical findings of the **GuardSLM Pilot Ben
 
 ## 2. Multi-Model Master Performance Summary
 
-The table below compiles the definitive results of all 7 evaluated model configurations evaluated over the 80 controlled Moodle LMS test cases.
+The table below compiles the definitive results of all 7 evaluated model configurations evaluated over the 80 controlled LMS test cases.
 
 | Model Name | Param Count | Overall Accuracy | Pair Accuracy | Context Flip Rate | False Allow (Unsafe Missed) | False Block (Over-Refusal) | Avg Latency (T4 GPU) | Decision Gate Verdict |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -76,7 +76,7 @@ One of the most revealing findings in the pilot is the contrast between **T1** a
 - **Unaugmented (12.5% Pair Accuracy, 30 False Allows):**
   WebGuard was trained on e-commerce actions where "risk" is defined as irreversible monetary loss or account deletion. Because clicking "Submit answer" or "Download report" carries no obvious financial consequence, WebGuard labeled routine academic actions as `SAFE` across the board, failing to block unauthorized student behavior.
 - **Augmented Context (40.0% Pair Accuracy, 70.0% Accuracy):**
-  When institutional policy text and Moodle database state were injected into the grounding prompt, Pair Accuracy jumped from **12.5% to 40.0%**, and Overall Accuracy rose from **56.2% to 70.0%**. This confirms our foundational thesis: **web agent safety in institutional platforms requires multi-modal state grounding, not just DOM action inspection.**
+  When institutional policy text and LMS database state were injected into the grounding prompt, Pair Accuracy jumped from **12.5% to 40.0%**, and Overall Accuracy rose from **56.2% to 70.0%**. This confirms our foundational thesis: **web agent safety in institutional platforms requires multi-modal state grounding, not just DOM action inspection.**
 
 ### 4.3 PolicyGuard-4B: Hyper-Conservatism & Latency Superiority
 - **Safety Profile:** PolicyGuard-4B was the **only model to achieve 0 False Allows**. It never allowed an unauthorized action through.
@@ -100,7 +100,7 @@ The pilot has conclusively answered the core research questions:
 
 ### 5.2 Next Steps for the Engineering & Research Team
 1. **Domain-Specific Supervised Fine-Tuning (SFT):**
-   Fine-tune Qwen 2.5 1.5B and 3B on a dedicated dataset of 2,000+ Moodle/Canvas matched pairs with dual grounding (Accessibility Tree + Moodle State JSON + Policy).
+   Fine-tune Qwen 2.5 1.5B and 3B on a dedicated dataset of 2,000+ LMS/Canvas matched pairs with dual grounding (Accessibility Tree + LMS State JSON + Policy).
 2. **Asymmetric Reward Reinforcement Learning (GRPO):**
    Implement Group Relative Policy Optimization (GRPO) with an asymmetric reward function:
    $$R(\text{False Allow}) \ll R(\text{False Block}) < R(\text{Correct})$$
