@@ -200,40 +200,58 @@ def format_webguard_messages(
     ]
 
 
-def parse_webguard_output(raw_text: str) -> Tuple[Optional[str], str, str]:
-    """Parses WebGuard model output into native risk classification.
+def parse_webguard_output(raw_text: str, support_ask: bool = False) -> Tuple[Optional[str], str, str]:
+    """Parses WebGuard model output into native risk classification and maps to GuardSLM decision.
 
-    Native vocabulary: SAFE, LOW, HIGH.
-    Risk classification represents impact severity, not institutional authorization.
-    Therefore, native_label in {'SAFE', 'LOW', 'HIGH'} does not automatically map
-    to ALLOW/BLOCK; benchmark authorization verdict remains UNKNOWN.
+    Mapping Contract (Experimental risk-to-authorization mapping for benchmark compatibility):
+    - SAFE -> ALLOW
+    - LOW  -> ALLOW
+    - HIGH -> BLOCK
+    - ASK  -> ASK (only if support_ask=True, i.e., adapted prompt explicitly instructs it;
+                   ASK is NOT a native WebGuard risk label)
+    - Unrecognized/malformed -> UNKNOWN (parse failure)
+
+    Note: This is an experimental risk-to-authorization mapping used for benchmark compatibility,
+    not WebGuard's native authorization capability (WebGuard was trained for web action risk
+    severity assessment: SAFE, LOW, HIGH).
 
     Returns:
-        (native_label, verdict, parse_status)
-        where native_label in {'SAFE', 'LOW', 'HIGH', None}
-        verdict is 'UNKNOWN'
+        (native_label, normalized_prediction, parse_status)
+        where native_label in {'SAFE', 'LOW', 'HIGH', 'ASK', None}
+        normalized_prediction in {'ALLOW', 'BLOCK', 'ASK', 'UNKNOWN'}
         parse_status in {'success', 'failed'}
     """
     text = raw_text.strip()
+    valid_native_risks = {"SAFE", "LOW", "HIGH"}
+    candidate_label: Optional[str] = None
 
     # 1. Exact JSON parsing
     json_match = re.search(r'\{.*?"risky_level"\s*:\s*"([A-Za-z]+)".*?\}', text, re.DOTALL)
     if json_match:
-        risk = json_match.group(1).upper()
-        if risk in ("SAFE", "LOW", "HIGH"):
-            return risk, "UNKNOWN", "success"
+        candidate_label = json_match.group(1).upper()
 
-    # 2. Key-value pattern (e.g. risky_level: SAFE)
-    kv_match = re.search(r'\b(?:risky_level|risk(?:_level)?)\s*[:=]\s*"?([A-Za-z]+)"?', text, re.IGNORECASE)
-    if kv_match:
-        risk = kv_match.group(1).upper()
-        if risk in ("SAFE", "LOW", "HIGH"):
-            return risk, "UNKNOWN", "success"
+    # 2. Key-value pattern (e.g. risky_level: SAFE / risk: HIGH / decision: ASK)
+    if not candidate_label:
+        kv_match = re.search(r'\b(?:risky_level|risk(?:_level)?|decision|verdict)\s*[:=]\s*"?([A-Za-z]+)"?', text, re.IGNORECASE)
+        if kv_match:
+            candidate_label = kv_match.group(1).upper()
 
     # 3. Clean whole-token check (accounting for whitespace, quotes, punctuation)
-    cleaned = text.strip("'\"`.,;:!").strip().upper()
-    if cleaned in ("SAFE", "LOW", "HIGH"):
-        return cleaned, "UNKNOWN", "success"
+    if not candidate_label:
+        cleaned = text.strip("'\"`.,;:!").strip().upper()
+        if cleaned in valid_native_risks or cleaned == "ASK":
+            candidate_label = cleaned
+
+    # Evaluate candidate label against mapping contract
+    if candidate_label in ("SAFE", "LOW"):
+        return candidate_label, "ALLOW", "success"
+    elif candidate_label == "HIGH":
+        return candidate_label, "BLOCK", "success"
+    elif candidate_label == "ASK":
+        if support_ask:
+            return "ASK", "ASK", "success"
+        # ASK is not a native WebGuard risk label; rejected unless adapted prompt explicitly supports it
+        return None, "UNKNOWN", "failed"
 
     return None, "UNKNOWN", "failed"
 
@@ -252,6 +270,7 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         self.adapter_path = self.config.get("adapter_path", None)
         self.load_in_4bit = self.config.get("load_in_4bit", False)
         self.augmented = self.config.get("augmented", True)
+        self.support_ask = self.config.get("support_ask", False)
         self.hf_token = self.config.get("hf_token", None)
         self.tokenizer = None
         self.model = None
@@ -393,9 +412,18 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
         )
         return content
 
-    def parse_native_output(self, raw_text: str) -> Tuple[Optional[str], str, str]:
-        """Maps WebGuard output into native risk classification (SAFE, LOW, HIGH -> UNKNOWN authorization)."""
-        return parse_webguard_output(raw_text)
+    def parse_native_output(self, raw_text: str, support_ask: Optional[bool] = None) -> Tuple[Optional[str], str, str]:
+        """Maps WebGuard output into native risk classification and normalized GuardSLM prediction.
+
+        Experimental risk-to-authorization mapping for benchmark compatibility:
+        - SAFE -> ALLOW
+        - LOW  -> ALLOW
+        - HIGH -> BLOCK
+        - ASK  -> ASK (only if support_ask=True)
+        - Malformed -> UNKNOWN (failed)
+        """
+        ask_flag = self.support_ask if support_ask is None else support_ask
+        return parse_webguard_output(raw_text, support_ask=ask_flag)
 
     def predict(
         self,
@@ -456,7 +484,8 @@ class WebGuardBenchmarkGuard(BenchmarkModel):
             policy_checks=policy_checks,
             evidence=[f"risky_level:{risky_level}"] if risky_level else [],
             rationale=(
-                f"WebGuard native risk: {risky_level} (Risk classification is independent of institutional authorization)"
+                f"WebGuard native risk: {risky_level} -> Normalized GuardSLM prediction: {mapped_verdict} "
+                f"(Experimental risk-to-authorization mapping for benchmark compatibility)"
                 if risky_level else f"Could not parse WebGuard risk level from '{raw_text}'"
             ),
             parse_status=parse_status,

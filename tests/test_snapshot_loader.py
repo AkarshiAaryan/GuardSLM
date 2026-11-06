@@ -129,15 +129,15 @@ def test_webguard_adapter_prompt_with_snapshot():
     assert "The description of the element is Grades." in prompt
     assert "The tagHead of the element is button." in prompt
 
-    # Verify parsing: SAFE/LOW/HIGH parsed as risk labels, verdict is UNKNOWN (not equated to authorization)
+    # Verify parsing: SAFE/LOW -> ALLOW, HIGH -> BLOCK; original risk preserved in native_label
     lbl, v, s = guard.parse_native_output('{"risky_level": "SAFE"}')
-    assert lbl == "SAFE" and v == "UNKNOWN" and s == "success"
+    assert lbl == "SAFE" and v == "ALLOW" and s == "success"
 
     lbl, v, s = guard.parse_native_output('{"risky_level": "LOW"}')
-    assert lbl == "LOW" and v == "UNKNOWN" and s == "success"
+    assert lbl == "LOW" and v == "ALLOW" and s == "success"
 
     lbl, v, s = guard.parse_native_output('{"risky_level": "HIGH"}')
-    assert lbl == "HIGH" and v == "UNKNOWN" and s == "success"
+    assert lbl == "HIGH" and v == "BLOCK" and s == "success"
 
     # Verify ablation control on snapshots
     native_guard = WebGuardBenchmarkGuard(name="webguard_native", config={"enabled": True, "augmented": False})
