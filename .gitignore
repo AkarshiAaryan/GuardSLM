@@ -26,3 +26,7 @@ data/benchmark_results/
 .env
 *.pem
 *.key
+
+# Experiment benchmark outputs
+results/*
+!results/.gitkeep

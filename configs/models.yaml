@@ -1,0 +1,25 @@
+data:
+  slm_inputs_dir: "research_data/slm_inputs"
+  ground_truth_path: "research_data/evaluation_only/ground_truth.csv"
+
+models:
+  mock_guard:
+    enabled: true
+    mode: "perfect"
+    target_format: "standard"
+    simulated_latency_ms: 5.0
+    description: "Deterministic CPU mock model using isolated oracle golds for local pipeline validation."
+
+  policyguard:
+    enabled: true
+    checkpoint: "Rakancorle1/PolicyGuard-4B"
+    load_in_4bit: false
+    max_new_tokens: 4
+    description: "PolicyGuard-4B Web Agent Trajectory Guardrail (Native trajectory format -> violation / no_violation)."
+
+  dynaguard:
+    enabled: true
+    checkpoint: "tomg-group-umd/DynaGuard-1.7B"
+    load_in_4bit: false
+    max_new_tokens: 16
+    description: "DynaGuard-1.7B Dynamic Dialogue Policy Compliance Guardrail (Native [INST] policy + dialogue format -> PASS / FAIL)."
