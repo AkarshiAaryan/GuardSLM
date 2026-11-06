@@ -9,7 +9,7 @@ evaluation:
   max_new_tokens: 256
 
 paths:
-  snapshots: research_snapshots
+  snapshots: research_snapshots_100
   canonical_dataset: data/GuardSLM_v3_Single_Master_Dataset.json
   benchmark_results: data/benchmark_results
   reports: reports

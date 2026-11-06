@@ -59,7 +59,7 @@ class BenchmarkEvaluator:
 
         total_cases = evaluation_results.get('total_cases_evaluated', 0)
         has_pairs = pairs.get("total_pairs", 0) > 0
-        pair_desc = f"({pairs.get('total_pairs')} matched pairs)" if has_pairs else "(20 Independent test cases)"
+        pair_desc = f"({pairs.get('total_pairs')} matched pairs)" if has_pairs else f"({total_cases} Independent test cases)"
 
         lines = [
             f"# GuardSLM Benchmark Report: {model_name} ({strategy})",

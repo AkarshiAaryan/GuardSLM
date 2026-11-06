@@ -46,8 +46,8 @@ Existing general-purpose safety guards often react blindly to surface keywords. 
 ## 🏗️ End-to-End System Architecture
 
 ```text
-       1. RESEARCH SNAPSHOTS (20 Authentic Playwright Test Cases)
-       (research_snapshots/slm_inputs/TC*.md: User, Role, Policy, A11y Tree)
+       1. RESEARCH SNAPSHOTS (100 Authentic Playwright Test Cases)
+       (research_snapshots_100/slm_inputs/TC*.md: User, Role, Policy, A11y Tree)
                                  │
                                  ▼
                    2. BENCHMARK LOADER & ISOLATION
@@ -86,7 +86,7 @@ Existing general-purpose safety guards often react blindly to surface keywords. 
 ## 🔒 Dataset & Zero-Leakage Oracle Isolation
 
 1. **Public Model Inputs**:
-   Located in `research_snapshots/slm_inputs/TC01_*.md` to `TC20_*.md`. Each case includes:
+   Located in `research_snapshots_100/slm_inputs/TC01_*.md` to `TC100_*.md`. Each case includes:
    - Authenticated role and user account
    - Target resource and requested operation
    - Formal institutional policy rules
@@ -94,7 +94,7 @@ Existing general-purpose safety guards often react blindly to surface keywords. 
    - Method `to_sanitized_dict()` guarantees zero exposure to ground truth decisions or institutional rationales.
 
 2. **Evaluation Oracle**:
-   Isolated in `research_snapshots/evaluation_only/ground_truth.csv`. Loaded strictly into `BenchmarkEvaluator` post-inference.
+   Isolated in `research_snapshots_100/evaluation_only/ground_truth.csv` (100 private ground truth verdicts: 48 ALLOW, 52 BLOCK). Loaded strictly into `BenchmarkEvaluator` post-inference. (The 20-case pilot dataset in `research_snapshots/` remains fully supported).
 
 ---
 
@@ -126,8 +126,8 @@ python3 -m pytest tests/ -v
 ```bash
 python3 -m src.benchmark.runner.experiment_runner \
   --model mock_guard \
-  --dataset research_snapshots \
-  --limit 20 \
+  --dataset research_snapshots_100 \
+  --limit 100 \
   --output-dir data/benchmark_results/smoke_test
 ```
 
@@ -165,12 +165,14 @@ slm-guard-pilot/
 ├── prompts/
 │   ├── base_guard_prompt.txt           # Base gatekeeper prompt template
 │   └── guardslm_100_authorization_prompt.txt # Institutional authorization prompt
-├── research_snapshots/
+├── research_snapshots_100/
 │   ├── evaluation_only/
-│   │   └── ground_truth.csv            # Physical isolation oracle
-│   ├── manifest.csv                    # Metadata mapping for all 20 cases
-│   ├── raw/                            # Reference scenario descriptions
-│   └── slm_inputs/                     # 20 public test cases with Playwright trees
+│   │   └── ground_truth.csv            # Physical isolation oracle (100 cases)
+│   ├── manifest.csv                    # Metadata mapping for all 100 cases
+│   ├── raw_snapshots/                  # Raw page and policy snapshots
+│   ├── reports/                        # Coverage, validation, inventory reports
+│   └── slm_inputs/                     # 100 public test cases with Playwright trees
+├── research_snapshots/                 # (Legacy 20-case pilot dataset)
 ├── src/
 │   └── benchmark/
 │       ├── data/

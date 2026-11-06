@@ -22,14 +22,31 @@ class BenchmarkLoader:
 
     def __init__(
         self,
-        dataset_path: str = "research_snapshots",
+        dataset_path: str = "research_snapshots_100",
         validate_on_load: bool = True
     ):
+        # Resolve path relative to repo or current directory
+        if not os.path.exists(dataset_path):
+            alt_repo = os.path.join("slm-guard-pilot", dataset_path)
+            if os.path.exists(alt_repo):
+                dataset_path = alt_repo
+
+        # Resolve directory aliases (e.g. research_snapshot_100 -> research_snapshots_100)
+        if not os.path.exists(dataset_path):
+            if "research_snapshot_100" in dataset_path:
+                candidate = dataset_path.replace("research_snapshot_100", "research_snapshots_100")
+                if os.path.exists(candidate):
+                    dataset_path = candidate
+            elif "research_snapshots_100" in dataset_path:
+                candidate = dataset_path.replace("research_snapshots_100", "research_snapshot_100")
+                if os.path.exists(candidate):
+                    dataset_path = candidate
+
         self.dataset_path = dataset_path
         if not os.path.exists(dataset_path):
             raise FileNotFoundError(f"Canonical benchmark dataset not found: {dataset_path}")
 
-        # Check if loading from research_snapshots directory
+        # Check if loading from research snapshots directory
         if os.path.isdir(dataset_path):
             self._load_from_research_snapshots(dataset_path)
             return
@@ -104,10 +121,16 @@ class BenchmarkLoader:
         with open(ground_truth_file, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                gold_raw[row["case_id"].strip()] = row
+                cid = (row.get("case_id") or row.get("test_id") or "").strip()
+                if cid:
+                    gold_raw[cid] = row
 
-        # 2. Parse all Markdown files in slm_inputs
-        files = sorted(glob.glob(os.path.join(slm_inputs_dir, "TC*.md")))
+        # 2. Parse all Markdown files in slm_inputs with natural numerical sort
+        def _natural_tc_sort(p: str) -> int:
+            m = re.search(r"TC(\d+)", os.path.basename(p))
+            return int(m.group(1)) if m else 0
+
+        files = sorted(glob.glob(os.path.join(slm_inputs_dir, "TC*.md")), key=_natural_tc_sort)
         self._model_inputs = []
         self._private_gold = {}
 
@@ -119,20 +142,22 @@ class BenchmarkLoader:
             case_id = title_match.group(1).strip() if title_match else os.path.basename(path).split("_")[0]
             title = title_match.group(2).strip() if title_match else ""
 
-            account = re.search(r"- Account:\s*(.*)", text)
-            global_role = re.search(r"- Global account role:\s*(.*)", text)
-            effective_role = re.search(r"- Effective role in this course:\s*(.*)", text)
-            membership = re.search(r"- Course membership / relevant group membership:\s*(.*)", text)
+            account = re.search(r"- (?:Username|Account):\s*(.*)", text)
+            global_role = re.search(r"- Global (?:account )?role:\s*(.*)", text)
+            effective_role = re.search(r"- Effective role in (?:the relevant|this) course:\s*(.*)", text)
+            membership = re.search(r"- (?:Course membership / relevant group membership|Group membership, if relevant):\s*(.*)", text)
 
             timestamp = re.search(r"- Capture timestamp:\s*(.*)", text)
             timezone = re.search(r"- Timezone used by the application:\s*(.*)", text)
             deadline_ts = re.search(r"- Relevant deadline/open/close/release timestamp, if any:\s*(.*)", text)
 
-            resource = re.search(r"- Course/resource:\s*(.*)", text)
-            operation = re.search(r"- Requested operation:\s*(.*)", text)
-            target_owner = re.search(r"- Target owner/group, if relevant:\s*(.*)", text)
+            course = re.search(r"- (?:Course|Course/resource):\s*(.*)", text)
+            task_req = re.search(r"- Actor\'s task/request:\s*(.*)", text)
+            operation = re.search(r"- (?:Operation|Requested operation):\s*(.*)", text)
+            target_resource = re.search(r"- Target resource:\s*(.*)", text)
+            target_owner = re.search(r"- Target owner(?:/group)?, if relevant:\s*(.*)", text)
 
-            policy_match = re.search(r"## Applicable policy context\s*\n(.*?)\n## Accessibility snapshot", text, re.DOTALL)
+            policy_match = re.search(r"## Applicable policy (?:evidence|context)\s*\n(.*?)\n## (?:Accessibility snapshot|Current page accessibility snapshot)", text, re.DOTALL)
             policy_context = policy_match.group(1).strip() if policy_match else ""
 
             yaml_blocks = re.findall(r"```yaml\s*\n(.*?)\n```", text, re.DOTALL)
@@ -140,9 +165,16 @@ class BenchmarkLoader:
             policy_a11y = yaml_blocks[1] if len(yaml_blocks) > 1 else ""
 
             course_scope = "LMS"
-            if resource:
-                res_parts = resource.group(1).strip().split("/")
+            if course:
+                res_parts = course.group(1).strip().split("/")
                 course_scope = res_parts[0].strip()
+
+            target_res_str = target_resource.group(1).strip() if target_resource else ""
+            if not target_res_str and course and "/" in course.group(1):
+                target_res_str = course.group(1).split("/", 1)[1].strip()
+
+            req_op_str = operation.group(1).strip() if operation else ""
+            user_task_str = task_req.group(1).strip() if task_req else ""
 
             snapshot_case = SnapshotInputCase(
                 case_id=case_id,
@@ -155,31 +187,33 @@ class BenchmarkLoader:
                 timezone=timezone.group(1).strip() if timezone else "UTC",
                 deadline_ts=deadline_ts.group(1).strip() if deadline_ts else "None",
                 course_or_scope=course_scope,
-                target_resource=resource.group(1).strip() if resource else "",
-                requested_operation=operation.group(1).strip() if operation else "",
+                target_resource=target_res_str,
+                requested_operation=req_op_str,
                 target_owner=target_owner.group(1).strip() if target_owner else "",
                 policy_context=policy_context,
                 target_a11y_tree=target_a11y,
                 policy_a11y_tree=policy_a11y,
                 pair_id="",
-                variant=""
+                variant="",
+                user_task=user_task_str
             )
             self._model_inputs.append(snapshot_case)
 
             # Build PrivateGoldAnnotation strictly isolated
             gold_row = gold_raw.get(case_id, {})
-            verdict = gold_row.get("expected_decision", "ALLOW").strip().upper()
-            rationale = gold_row.get("rationale", "")
+            verdict = (gold_row.get("expected_decision") or gold_row.get("verdict") or "ALLOW").strip().upper()
+            rationale = (gold_row.get("ground_truth_rationale") or gold_row.get("rationale") or "").strip()
+            policy_id = (gold_row.get("policy_rule") or "POL-SNAPSHOT").strip()
 
             gold_anno = PrivateGoldAnnotation(
                 case_id=case_id,
                 pair_id="",
                 verdict=verdict,
-                applicable_policy_ids=["POL-SNAPSHOT"],
-                violated_policy_ids=["POL-SNAPSHOT"] if verdict == "BLOCK" else [],
+                applicable_policy_ids=[policy_id],
+                violated_policy_ids=[policy_id] if verdict == "BLOCK" else [],
                 policy_checks=[
                     PolicyCheck(
-                        policy_id="POL-SNAPSHOT",
+                        policy_id=policy_id,
                         status="violated" if verdict == "BLOCK" else "satisfied",
                         evidence_quotes=[]
                     )
@@ -187,7 +221,7 @@ class BenchmarkLoader:
                 evidence=[],
                 rationale=rationale,
                 annotation_status="canonical_snapshot",
-                gold_provenance="research_snapshots/evaluation_only/ground_truth.csv"
+                gold_provenance=f"{directory_path}/evaluation_only/ground_truth.csv"
             )
             self._private_gold[case_id] = gold_anno
 

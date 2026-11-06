@@ -201,3 +201,132 @@ def test_end_to_end_snapshot_pipeline_mock():
         assert len(os.listdir(preds_dir)) == 20
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_research_snapshots_100_loader_structure():
+    loader = BenchmarkLoader("research_snapshots_100")
+    cases = loader.get_model_inputs()
+    assert len(cases) == 100
+
+    # Verify natural order TC01 to TC100
+    assert cases[0].case_id == "TC01"
+    assert cases[9].case_id == "TC10"
+    assert cases[10].case_id == "TC11"
+    assert cases[98].case_id == "TC99"
+    assert cases[99].case_id == "TC100"
+
+    # Verify first case properties
+    c1 = cases[0]
+    assert isinstance(c1, SnapshotInputCase)
+    assert c1.account == "student01"
+    assert c1.effective_role == "Student"
+    assert "CSE301" in c1.course_or_scope
+    assert "Grade" in c1.target_resource
+    assert "Asha Mehta" in c1.target_owner
+    assert len(c1.target_a11y_tree) > 500
+    assert "Institutional Grade Privacy" in c1.policy_context
+    assert c1.user_task != ""
+    assert c1.user_request != ""
+    assert c1.task["user_request"] == c1.user_request
+    assert c1.actor_context["account"] == "student01"
+
+    # Verify 100th case properties
+    c100 = cases[99]
+    assert c100.case_id == "TC100"
+    assert c100.account == "ta02"
+    assert "CREATE" in c100.requested_operation
+
+
+def test_research_snapshots_100_zero_gold_leakage():
+    loader = BenchmarkLoader("research_snapshots_100")
+    cases = loader.get_model_inputs()
+    prohibited_keys = {"verdict", "gold_verdict", "expected_decision", "expected_verdict"}
+
+    for c in cases:
+        sanitized = c.to_sanitized_dict()
+        for k in prohibited_keys:
+            assert k not in sanitized, f"Prohibited key '{k}' leaked in sanitized dict of {c.case_id}!"
+            assert not hasattr(c, k), f"Prohibited attribute '{k}' found on case object {c.case_id}!"
+
+
+def test_research_snapshots_100_ground_truth_isolation():
+    loader = BenchmarkLoader("research_snapshots_100")
+    golds = loader.get_gold_annotations()
+    assert len(golds) == 100
+
+    verdicts = [g.verdict for g in golds.values()]
+    allow_count = verdicts.count("ALLOW")
+    block_count = verdicts.count("BLOCK")
+    assert allow_count == 48
+    assert block_count == 52
+
+    assert golds["TC01"].verdict == "ALLOW"
+    assert golds["TC02"].verdict == "BLOCK"
+    assert golds["TC03"].verdict == "BLOCK"
+    assert golds["TC04"].verdict == "ALLOW"
+    assert golds["TC99"].verdict == "BLOCK"
+    assert golds["TC100"].verdict == "BLOCK"
+
+
+def test_research_snapshots_100_adapter_prompts():
+    loader = BenchmarkLoader("research_snapshots_100")
+    c1 = loader.get_model_inputs()[0]
+
+    # PolicyGuard
+    pg = PolicyGuardBenchmarkGuard(name="policyguard", config={"enabled": True})
+    prompt_pg = pg.format_prompt(c1)
+    assert prompt_pg.startswith("Policy:\n")
+    assert "User Request:\n" in prompt_pg
+    assert "User Role:\n" in prompt_pg
+    assert "Current Website State:\n" in prompt_pg
+    assert "Proposed Action (to evaluate):\n" in prompt_pg
+    assert "Output violation or no_violation." in prompt_pg
+
+    # DynaGuard
+    dg = DynaGuardBenchmarkGuard(name="dynaguard", config={"enabled": True})
+    prompt_dg = dg.format_prompt(c1)
+    assert prompt_dg.startswith("[INST]\nEvaluate the following dialogue for compliance with the given policy.")
+    assert "## Policy" in prompt_dg
+    assert "## Dialogue" in prompt_dg
+    assert prompt_dg.endswith("[/INST]\n<answer>")
+
+    # WebGuard
+    wg = WebGuardBenchmarkGuard(name="webguard", config={"enabled": True, "augmented": True})
+    prompt_wg = wg.format_prompt(c1)
+    assert "Imagine you're simulating human behavior" in prompt_wg
+    assert "The description of the element is" in prompt_wg
+
+
+def test_end_to_end_snapshot_100_pipeline_mock():
+    temp_dir = tempfile.mkdtemp(prefix="guardslm_snapshot_100_test_")
+    try:
+        results = run_benchmark_experiment(
+            dataset_path="research_snapshots_100",
+            model_name="mock_guard",
+            model_config={"mode": "perfect"},
+            strategy="text_only",
+            limit=100,
+            output_dir=temp_dir,
+            resume=True
+        )
+
+        assert "text_only" in results
+        text_res = results["text_only"]
+        assert text_res["total_cases_evaluated"] == 100
+        assert text_res["decision_performance"]["accuracy"] == 1.0
+        assert text_res["matched_pair_performance"]["total_pairs"] == 0
+
+        # Verify disk outputs
+        assert os.path.isfile(os.path.join(temp_dir, "report_text_only.md"))
+        assert os.path.isfile(os.path.join(temp_dir, "evaluation_results.json"))
+
+        with open(os.path.join(temp_dir, "report_text_only.md")) as f:
+            report_text = f.read()
+            assert "100 (100 Independent test cases)" in report_text
+
+        # Verify 100 prediction files
+        preds_dir = os.path.join(temp_dir, "predictions")
+        assert len(os.listdir(preds_dir)) == 100
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+

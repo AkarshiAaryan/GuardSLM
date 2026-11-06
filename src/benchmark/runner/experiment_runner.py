@@ -43,12 +43,12 @@ def build_model_instance(
 
 
 def run_benchmark_experiment(
-    dataset_path: str = "research_snapshots",
+    dataset_path: str = "research_snapshots_100",
     model_name: str = "mock_guard",
     model_config: Optional[Dict[str, Any]] = None,
     strategy: str = "text_only",
     case_ids: Optional[List[str]] = None,
-    limit: Optional[int] = 20,
+    limit: Optional[int] = 100,
     output_dir: Optional[str] = None,
     resume: bool = True
 ) -> Dict[str, Any]:
@@ -139,11 +139,11 @@ def run_benchmark_experiment(
 
 def main():
     parser = argparse.ArgumentParser(description="GuardSLM LMS Snapshot Benchmark Experiment Runner.")
-    parser.add_argument("--dataset", type=str, default="research_snapshots")
+    parser.add_argument("--dataset", type=str, default="research_snapshots_100")
     parser.add_argument("--model", type=str, default="mock_guard")
     parser.add_argument("--strategy", type=str, default="text_only", choices=["text_only"])
     parser.add_argument("--case-ids", type=str, default=None, help="Comma-separated case IDs to run.")
-    parser.add_argument("--limit", type=int, default=20, help="Limit number of cases (default: 20).")
+    parser.add_argument("--limit", type=int, default=100, help="Limit number of cases (default: 100).")
     parser.add_argument("--output-dir", type=str, default=None, help="Custom output directory.")
     parser.add_argument("--no-resume", action="store_true", help="Disable resumption.")
     args = parser.parse_args()

@@ -346,11 +346,20 @@ class SnapshotInputCase:
     pair_id: str = ""
     variant: str = ""
     is_snapshot: bool = True
+    user_task: str = ""
 
     # Standardized properties compatible with ModelInputCase
     @property
     def user_request(self) -> str:
-        return self.requested_operation
+        return self.user_task if self.user_task else self.requested_operation
+
+    @property
+    def actor_context(self) -> Dict[str, Any]:
+        return self.actor_info
+
+    @property
+    def task(self) -> Dict[str, Any]:
+        return {"user_request": self.user_request, "conversation_history": []}
 
     @property
     def authenticated_role(self) -> str:
@@ -364,7 +373,7 @@ class SnapshotInputCase:
     @property
     def page_context(self) -> Dict[str, Any]:
         return {
-            "user_request": self.requested_operation,
+            "user_request": self.user_request,
             "target": {
                 "resource": {"course_id": self.course_or_scope, "resource": self.target_resource},
                 "state": {"timestamp": self.timestamp, "deadline": self.deadline_ts}
@@ -456,6 +465,7 @@ class SnapshotInputCase:
                 "course_or_scope": self.course_or_scope,
                 "target_resource": self.target_resource,
                 "requested_operation": self.requested_operation,
+                "user_task": self.user_task,
                 "target_owner": self.target_owner
             },
             "policy_context": self.policy_context,
