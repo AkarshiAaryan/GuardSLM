@@ -13,15 +13,40 @@ VALID_CHECK_STATUSES = {"not_applicable", "satisfied", "violated", "insufficient
 @dataclass
 class ParsedBenchmarkOutput:
     case_id: str
-    verdict: str  # ALLOW, BLOCK, ASK, UNKNOWN
+    verdict: str  # ALLOW, BLOCK, ASK, UNKNOWN (serves as benchmark prediction)
     applicable_policy_ids: List[str]
     violated_policy_ids: List[str]
     policy_checks: List[Dict[str, Any]]
-    evidence: List[Dict[str, Any]]
+    evidence: List[Any]
     rationale: str
-    parse_status: str  # success, repaired, failed
+    parse_status: str  # success, repaired, failed (serves as parsing_status)
     validation_errors: List[str] = field(default_factory=list)
-    raw_response: str = ""
+    raw_response: str = ""  # (serves as raw_output)
+    native_label: Optional[str] = None
+    parsing_error: Optional[str] = None
+    raw_output: Optional[str] = None
+    prediction: Optional[str] = None
+    parsing_status: Optional[str] = None
+
+    def __post_init__(self):
+        if self.raw_output is None:
+            self.raw_output = self.raw_response
+        if not self.raw_response and self.raw_output:
+            self.raw_response = self.raw_output
+        if self.prediction is None:
+            self.prediction = self.verdict
+        if not self.verdict and self.prediction:
+            self.verdict = self.prediction
+        if self.parsing_status is None:
+            self.parsing_status = self.parse_status
+        if not self.parse_status and self.parsing_status:
+            self.parse_status = self.parsing_status
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ParsedBenchmarkOutput":
+        fields = cls.__dataclass_fields__.keys()
+        filtered = {k: v for k, v in d.items() if k in fields}
+        return cls(**filtered)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

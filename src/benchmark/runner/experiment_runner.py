@@ -94,8 +94,7 @@ def run_benchmark_experiment(
                 try:
                     with open(case_pred_file, "r", encoding="utf-8") as f:
                         saved_dict = json.load(f)
-                    parsed_dict = saved_dict["parsed"]
-                    parsed_obj = ParsedBenchmarkOutput(**parsed_dict)
+                    parsed_obj = ParsedBenchmarkOutput.from_dict(parsed_dict)
                     pred = BenchmarkPrediction(
                         case_id=saved_dict["case_id"],
                         strategy=saved_dict["strategy"],

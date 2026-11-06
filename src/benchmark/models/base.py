@@ -21,6 +21,22 @@ class BenchmarkPrediction:
     error: Optional[str] = None
     model_name: str = ""
 
+    @property
+    def raw_output(self) -> str:
+        return self.raw_response
+
+    @property
+    def native_label(self) -> Optional[str]:
+        return getattr(self.parsed, "native_label", None)
+
+    @property
+    def prediction(self) -> str:
+        return getattr(self.parsed, "verdict", "UNKNOWN")
+
+    @property
+    def parsing_status(self) -> str:
+        return getattr(self.parsed, "parse_status", "failed")
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "case_id": self.case_id,
@@ -28,6 +44,10 @@ class BenchmarkPrediction:
             "model_name": self.model_name,
             "parsed": self.parsed.to_dict(),
             "raw_response": self.raw_response,
+            "raw_output": self.raw_response,
+            "native_label": self.native_label,
+            "prediction": self.prediction,
+            "parsing_status": self.parsing_status,
             "latency_ms": self.latency_ms,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
