@@ -36,9 +36,8 @@ Existing general-purpose safety guards often react blindly to surface keywords. 
 
 | Model | Parameters | Checkpoint | Adapter Class | Native Format & Logic |
 | :--- | :---: | :--- | :--- | :--- |
-| **PolicyGuard-4B** | 4.0B | `Rakancorle1/PolicyGuard-4B` | `PolicyGuardBenchmarkGuard` | Native 5-step trajectory prompt $\rightarrow$ `violation` / `no_violation` |
-| **DynaGuard-1.7B** | 1.7B | `tomg-group-umd/DynaGuard-1.7B` | `DynaGuardBenchmarkGuard` | Dynamic policy gatekeeper prompt $\rightarrow$ `ALLOW`, `BLOCK`, `ASK` + rationale |
-| **WebGuard-3B** | 3.0B | `Qwen/Qwen2.5-3B-Instruct` | `WebGuardBenchmarkGuard` | Playwright accessibility tree risk assessment $\rightarrow$ `SAFE`, `LOW`, `HIGH` |
+| **PolicyGuard-4B** | 4.0B | `Rakancorle1/PolicyGuard-4B` | `PolicyGuardBenchmarkGuard` | Official plain-text trajectory evaluation format (`Policy: ... \n\nTrajectory Actions:\n... \n\nOutput violation or no_violation.` mapped to `BLOCK` / `ALLOW`) |
+| **DynaGuard-1.7B** | 1.7B | `tomg-group-umd/DynaGuard-1.7B` | `DynaGuardBenchmarkGuard` | Official fast-inference dialogue compliance format (`[INST]` policy + dialogue `[/INST]\n<answer>` → `PASS` / `FAIL` mapped to `ALLOW` / `BLOCK`) |
 | **MockGuard** | — | Deterministic CPU mock | `MockBenchmarkGuard` | Offline pipeline verification |
 
 ---
@@ -60,7 +59,7 @@ Existing general-purpose safety guards often react blindly to surface keywords. 
                   │                             │
                   ▼                             │
        3. SPECIALIZED MODEL ADAPTERS            │
-      (PolicyGuard / DynaGuard / WebGuard)      │
+          (PolicyGuard / DynaGuard)             │
                   │                             │
                   ▼                             │
        4. RESILIENT OUTPUT PARSER               │
@@ -140,13 +139,11 @@ Open `notebooks/colab_pilot.ipynb` or `notebooks/colab_guard_slm_100_pairs.ipynb
 1. **Step 1**: Clones repository into `/content/GuardSLM`.
 2. **Step 2**: Installs Hugging Face transformers, accelerate, and bitsandbytes.
 3. **Step 3**: Detects GPU hardware.
-4. **Step 4**: Loads and verifies the 20 research snapshot cases.
+4. **Step 4**: Loads and verifies the benchmark snapshot cases.
 5. **Step 5**: Runs CPU sanity test with `MockBenchmarkGuard`.
 6. **Step 6A**: Evaluates **PolicyGuard-4B**.
 7. **Step 6B**: Evaluates **DynaGuard-1.7B**.
-8. **Step 6C**: Evaluates **WebGuard-3B**.
-9. **Step 7**: Evaluates baseline models.
-10. **Step 8**: Renders the consolidated comparative leaderboard.
+8. **Step 7**: Renders the consolidated comparative leaderboard.
 
 ---
 
@@ -185,10 +182,8 @@ slm-guard-pilot/
 │       ├── models/
 │       │   ├── base.py                 # BenchmarkModel abstract base class
 │       │   ├── dynaguard_benchmark_guard.py   # DynaGuard-1.7B adapter
-│       │   ├── hf_benchmark_guard.py          # Generic HuggingFace adapter
 │       │   ├── mock_benchmark_guard.py        # Deterministic test mock
-│       │   ├── policyguard_benchmark_guard.py # PolicyGuard-4B adapter
-│       │   └── webguard_benchmark_guard.py    # WebGuard-3B adapter
+│       │   └── policyguard_benchmark_guard.py # PolicyGuard-4B adapter
 │       ├── parser/
 │       │   └── output_parser.py        # JSON repair and verdict extraction
 │       ├── prompts/

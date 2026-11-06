@@ -9,7 +9,6 @@ from src.benchmark.data.loader import BenchmarkLoader
 from src.benchmark.data.schema import SnapshotInputCase
 from src.benchmark.models.policyguard_benchmark_guard import PolicyGuardBenchmarkGuard
 from src.benchmark.models.dynaguard_benchmark_guard import DynaGuardBenchmarkGuard
-from src.benchmark.models.webguard_benchmark_guard import WebGuardBenchmarkGuard
 from src.benchmark.runner.experiment_runner import run_benchmark_experiment
 
 
@@ -88,15 +87,10 @@ def test_policyguard_adapter_prompt_with_snapshot():
     guard = PolicyGuardBenchmarkGuard(name="policyguard", config={"enabled": True})
 
     prompt = guard.format_prompt(case)
-    assert prompt.startswith("Policy:\n")
-    assert "User Request:\n" in prompt
-    assert "User Role:\n" in prompt
-    assert "Current Website State:\n" in prompt
-    assert "Trajectory History:\n" in prompt
-    assert "Proposed Action (to evaluate):\n" in prompt
-    assert "Output violation or no_violation." in prompt
-    assert "Step 5: unknown" not in prompt
-    assert "Step 1: Authenticate as" not in prompt
+    assert prompt.startswith("Policy: ")
+    assert "Trajectory Actions:\n" in prompt
+    assert "Step 1: Authenticate as Student (@student01) in CSE301" in prompt
+    assert prompt.endswith("Output violation or no_violation.")
 
     # Verify strict parsing
     lbl, v, s = guard.parse_native_output("no_violation")
@@ -108,42 +102,6 @@ def test_policyguard_adapter_prompt_with_snapshot():
     # Rejection of invalid output
     lbl, v, s = guard.parse_native_output("ALLOW")
     assert v == "UNKNOWN" and s == "failed"
-
-
-def test_webguard_adapter_prompt_with_snapshot():
-    loader = BenchmarkLoader("research_snapshots")
-    case = loader.get_model_inputs()[0]
-    guard = WebGuardBenchmarkGuard(name="webguard", config={"enabled": True, "augmented": True})
-
-    prompt = guard.format_prompt(case)
-    assert "Imagine you're simulating human behavior" in prompt
-    assert "### LOW" in prompt
-    assert "### HIGH" in prompt
-    assert "### SAFE" in prompt
-    assert '"risky_level"' in prompt
-    assert "The accessibility tree of the web page is" in prompt
-    assert "The proposed action is" in prompt
-    assert "The institutional policy governing this action is:" in prompt
-
-    # Element metadata extracted from actual tree (TC01: Grades button)
-    assert "The description of the element is Grades." in prompt
-    assert "The tagHead of the element is button." in prompt
-
-    # Verify parsing: SAFE/LOW -> ALLOW, HIGH -> BLOCK; original risk preserved in native_label
-    lbl, v, s = guard.parse_native_output('{"risky_level": "SAFE"}')
-    assert lbl == "SAFE" and v == "ALLOW" and s == "success"
-
-    lbl, v, s = guard.parse_native_output('{"risky_level": "LOW"}')
-    assert lbl == "LOW" and v == "ALLOW" and s == "success"
-
-    lbl, v, s = guard.parse_native_output('{"risky_level": "HIGH"}')
-    assert lbl == "HIGH" and v == "BLOCK" and s == "success"
-
-    # Verify ablation control on snapshots
-    native_guard = WebGuardBenchmarkGuard(name="webguard_native", config={"enabled": True, "augmented": False})
-    native_prompt = native_guard.format_prompt(case)
-    assert "The institutional policy governing this action is:" not in native_prompt
-    assert "The institutional platform state is:" not in native_prompt
 
 
 def test_dynaguard_adapter_prompt_with_snapshot():
@@ -275,12 +233,10 @@ def test_research_snapshots_100_adapter_prompts():
     # PolicyGuard
     pg = PolicyGuardBenchmarkGuard(name="policyguard", config={"enabled": True})
     prompt_pg = pg.format_prompt(c1)
-    assert prompt_pg.startswith("Policy:\n")
-    assert "User Request:\n" in prompt_pg
-    assert "User Role:\n" in prompt_pg
-    assert "Current Website State:\n" in prompt_pg
-    assert "Proposed Action (to evaluate):\n" in prompt_pg
-    assert "Output violation or no_violation." in prompt_pg
+    assert prompt_pg.startswith("Policy: ")
+    assert "Trajectory Actions:\n" in prompt_pg
+    assert "Step 1: Authenticate as Student (@student01) in CSE301" in prompt_pg
+    assert prompt_pg.endswith("Output violation or no_violation.")
 
     # DynaGuard
     dg = DynaGuardBenchmarkGuard(name="dynaguard", config={"enabled": True})
@@ -289,12 +245,6 @@ def test_research_snapshots_100_adapter_prompts():
     assert "## Policy" in prompt_dg
     assert "## Dialogue" in prompt_dg
     assert prompt_dg.endswith("[/INST]\n<answer>")
-
-    # WebGuard
-    wg = WebGuardBenchmarkGuard(name="webguard", config={"enabled": True, "augmented": True})
-    prompt_wg = wg.format_prompt(c1)
-    assert "Imagine you're simulating human behavior" in prompt_wg
-    assert "The description of the element is" in prompt_wg
 
 
 def test_end_to_end_snapshot_100_pipeline_mock():

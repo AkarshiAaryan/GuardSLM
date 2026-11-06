@@ -166,7 +166,7 @@ def generate_consolidated_summary_table(results_dir: str = "data/benchmark_resul
     if not runs_by_model:
         return "> [!WARNING]\n> No valid evaluation data could be parsed from discovered results."
 
-    MODEL_ORDER = ["policyguard", "dynaguard", "webguard", "qwen3_vl_2b", "mock_guard"]
+    MODEL_ORDER = ["policyguard", "dynaguard", "mock_guard"]
 
     def sort_key(item):
         k, v = item

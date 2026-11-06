@@ -140,12 +140,11 @@ def test_generate_consolidated_summary_table(tmp_path):
     res_empty = generate_consolidated_summary_table(str(tmp_path / "nonexistent"))
     assert "does not exist" in res_empty
 
-    # Create mock runs for policyguard, dynaguard, webguard
+    # Create mock runs for policyguard, dynaguard
     results_dir = tmp_path / "benchmark_results"
     for model_name, acc, fa_rate in [
         ("policyguard", 0.90, 0.05),
-        ("dynaguard", 0.85, 0.00),
-        ("webguard", 0.80, 0.10)
+        ("dynaguard", 0.85, 0.00)
     ]:
         run_dir = results_dir / f"20261102_120000_{model_name}_text_only"
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -182,8 +181,6 @@ def test_generate_consolidated_summary_table(tmp_path):
     assert "Consolidated Multi-Model Leaderboard" in table_md
     assert "policyguard" in table_md
     assert "dynaguard" in table_md
-    assert "webguard" in table_md
     assert "90.0%" in table_md
     assert "85.0%" in table_md
-    assert "80.0%" in table_md
 

@@ -68,7 +68,8 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
             role_context = f"{role} (@{account}) in {course_scope}"
             user_req = case.user_request or "interact with the platform"
             target_res = getattr(case, "target_resource", "resource")
-            action_str = f"{user_req} on target {target_res}".strip()
+            operation = getattr(case, "requested_operation", user_req)
+            action_str = f"{operation} on target {target_res}".strip()
             policy_str = getattr(case, "policy_context", "") or "\n".join(case.policy_info)
 
             prompt = (

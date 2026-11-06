@@ -2,49 +2,19 @@ models:
   mock_guard:
     enabled: true
     mode: "perfect"
-    limit: 20
+    limit: 100
     description: "Lightweight CPU mock guard for local pipeline testing."
 
   policyguard:
     enabled: true
     checkpoint: "Rakancorle1/PolicyGuard-4B"
     load_in_4bit: false
-    limit: 20
+    limit: 100
     description: "PolicyGuard-4B Web Agent Trajectory Guardrail (Native trajectory format -> violation / no_violation)."
 
   dynaguard:
     enabled: true
     checkpoint: "tomg-group-umd/DynaGuard-1.7B"
     load_in_4bit: false
-    limit: 20
+    limit: 100
     description: "DynaGuard-1.7B Dynamic Dialogue Policy Compliance Guardrail (Native [INST] policy + dialogue format -> PASS / FAIL)."
-
-  webguard:
-    enabled: true
-    checkpoint: "Qwen/Qwen2.5-3B-Instruct"
-    adapter_path: null
-    load_in_4bit: false
-    augmented: true
-    limit: 20
-    description: "WebGuard-3B Augmented Condition (Accessibility tree + proposed action + institutional policy + platform state)."
-
-  webguard_native:
-    enabled: true
-    checkpoint: "Qwen/Qwen2.5-3B-Instruct"
-    adapter_path: null
-    load_in_4bit: false
-    augmented: false
-    limit: 20
-    description: "WebGuard-3B Native Baseline Condition (Unaugmented accessibility tree + proposed action only)."
-
-  qwen3_vl_2b:
-    enabled: true
-    checkpoint: "Qwen/Qwen3-VL-2B-Instruct"
-    is_vlm: true
-    load_in_4bit: false
-    limit: 20
-    description: "Qwen3-VL 2B Text-Only Authorization Guardrail Evaluation."
-
-  large_model_judge:
-    enabled: false
-    description: "Disabled (Free open-source SLMs only)."
