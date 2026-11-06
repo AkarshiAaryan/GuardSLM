@@ -75,10 +75,25 @@ def test_dynaguard_adapter_formatting_and_parsing(sample_case):
     lbl, v, s = guard.parse_native_output("<answer> PASS")
     assert lbl == "PASS" and v == "ALLOW" and s == "success"
 
+    lbl, v, s = guard.parse_native_output("PASS</s>")
+    assert lbl == "PASS" and v == "ALLOW" and s == "success"
+
+    lbl, v, s = guard.parse_native_output("PASS<|eot_id|>")
+    assert lbl == "PASS" and v == "ALLOW" and s == "success"
+
+    lbl, v, s = guard.parse_native_output("<answer>PASS</answer></s>")
+    assert lbl == "PASS" and v == "ALLOW" and s == "success"
+
     lbl, v, s = guard.parse_native_output("FAIL")
     assert lbl == "FAIL" and v == "BLOCK" and s == "success"
 
     lbl, v, s = guard.parse_native_output("<answer> FAIL")
+    assert lbl == "FAIL" and v == "BLOCK" and s == "success"
+
+    lbl, v, s = guard.parse_native_output("FAIL</s>")
+    assert lbl == "FAIL" and v == "BLOCK" and s == "success"
+
+    lbl, v, s = guard.parse_native_output("<answer>FAIL</answer>")
     assert lbl == "FAIL" and v == "BLOCK" and s == "success"
 
     # Reject ALLOW, BLOCK, ASK and explanations as native labels
@@ -118,6 +133,16 @@ def test_webguard_adapter_formatting_and_parsing(sample_case):
     assert lbl == "SAFE" and v == "ALLOW" and s == "success"
 
     lbl, v, s = guard.parse_native_output("LOW")
+    assert lbl == "LOW" and v == "ALLOW" and s == "success"
+
+    # Conversational output parsing fallbacks
+    lbl, v, s = guard.parse_native_output('Based on the action, the risk level is HIGH.')
+    assert lbl == "HIGH" and v == "BLOCK" and s == "success"
+
+    lbl, v, s = guard.parse_native_output('The proposed operation is categorized as SAFE.')
+    assert lbl == "SAFE" and v == "ALLOW" and s == "success"
+
+    lbl, v, s = guard.parse_native_output('```json\n{"risky_level": "LOW"}\n```')
     assert lbl == "LOW" and v == "ALLOW" and s == "success"
 
     # ASK handling: rejected as native WebGuard label, accepted only when adapted prompt explicitly supports it

@@ -113,8 +113,9 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
         natively produce ASK decisions. Rejects ALLOW, BLOCK, ASK, and arbitrary
         explanations as native outputs.
         """
-        cleaned = re.sub(r'</?answer>', '', raw_text, flags=re.IGNORECASE).strip()
-        cleaned = cleaned.strip("'\"`.,;:!").strip().upper()
+        # Strip XML answer tags, EOS/special token markers, and whitespace
+        cleaned = re.sub(r'</?(?:answer|s|eos)>|<\|[^>]+?\|>', '', raw_text, flags=re.IGNORECASE).strip()
+        cleaned = cleaned.strip("'\"`.,;:!\n\r ").strip().upper()
 
         if cleaned == "PASS":
             return "PASS", "ALLOW", "success"
@@ -152,7 +153,7 @@ class DynaGuardBenchmarkGuard(BenchmarkModel):
             )
 
         gen_tokens = outputs[0][inputs.input_ids.shape[1]:]
-        raw_text = self.tokenizer.decode(gen_tokens, skip_special_tokens=False).strip()
+        raw_text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True).strip()
         latency_ms = (time.time() - start_time) * 1000.0
 
         native_label, mapped_verdict, parse_status = self.parse_native_output(raw_text)
