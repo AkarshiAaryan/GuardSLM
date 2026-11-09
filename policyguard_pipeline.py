@@ -144,7 +144,7 @@ def parse_output(raw_output: str) -> Tuple[str, str, Optional[str]]:
 
 
 def run_batch(
-    input_dir: str,
+    input_dir: str = "policyguard_prompts_100/policyguard_inputs",
     output_dir: Optional[str] = None,
     model: Optional[Any] = None,
     tokenizer: Optional[Any] = None,
@@ -360,8 +360,8 @@ def main():
     parser.add_argument(
         "--input-dir",
         type=str,
-        required=True,
-        help="Directory containing preformatted .txt input files."
+        default="policyguard_prompts_100/policyguard_inputs",
+        help="Directory containing preformatted .txt input files (default: policyguard_prompts_100/policyguard_inputs)."
     )
     parser.add_argument(
         "--output-dir",
