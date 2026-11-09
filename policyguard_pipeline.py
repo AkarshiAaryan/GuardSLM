@@ -7,8 +7,9 @@ Pipeline steps:
 1. Load PolicyGuard-4B model and tokenizer.
 2. Read 100 input files containing preformatted prompts.
 3. Send each prompt to the model with greedy decoding.
-4. Record raw model responses, normalized decisions, and inference latencies.
+4. Record model responses as-is without any normalization.
 5. Save streaming records immediately to predictions.jsonl and generate predictions.csv and summary.json.
+6. Evaluate against ground-truth answers if provided.
 """
 
 import argparse
@@ -83,6 +84,8 @@ def generate_response(
 ) -> Tuple[str, float, Optional[str]]:
     """Generates greedy decoding response for a single preformatted prompt.
 
+    Records the model's decoded text directly as-is without modification.
+
     Args:
         prompt: Complete, unmodified input prompt string.
         tokenizer: Pretrained AutoTokenizer.
@@ -117,34 +120,8 @@ def generate_response(
         return "", round(latency_ms, 2), str(e)
 
 
-def parse_output(raw_output: str) -> str:
-    """Extracts the model decision: 'violation', 'no_violation', or 'UNKNOWN'.
-
-    When PolicyGuard predicts 'violation', because max_new_tokens=4 and 'violation'
-    is a single token, the model fills remaining tokens with newlines/repeats (e.g. 'violation\\n\\nvi').
-    We check for 'no_violation' first, then 'violation', avoiding misclassification.
-    """
-    if not raw_output or not raw_output.strip():
-        return "UNKNOWN"
-
-    text = raw_output.lower().strip()
-    if any(k in text for k in ("no_violation", "no violation", "no-violation", "noviolation", "allow")):
-        return "no_violation"
-    elif any(k in text for k in ("violation", "violat", "block")):
-        return "violation"
-    else:
-        return "UNKNOWN"
-
-
 def load_ground_truth(ground_truth_path: str) -> Dict[str, Dict[str, str]]:
-    """Loads ground-truth answers from CSV and builds a multi-key lookup table.
-
-    Supports keys:
-      - input_file (e.g. 'TC01_student_own_grade.txt')
-      - Path(input_file).stem (e.g. 'TC01_student_own_grade')
-      - case_id (e.g. 'TC01')
-      - case_id normalized (e.g. 'tc01')
-    """
+    """Loads ground-truth answers from CSV and builds a multi-key lookup table."""
     if not os.path.isfile(ground_truth_path):
         raise FileNotFoundError(f"Ground-truth file not found: '{ground_truth_path}'")
 
@@ -175,13 +152,11 @@ def load_ground_truth(ground_truth_path: str) -> Dict[str, Dict[str, str]]:
 
 
 def _format_markdown_report(eval_summary: Dict[str, Any]) -> str:
-    """Generates a comprehensive markdown evaluation report."""
-    cm = eval_summary["confusion_matrix"]
-    cb = eval_summary["class_breakdown"]
-    total = eval_summary["total_test_cases"]
-    correct = eval_summary["correct_predictions"]
-    incorrect = eval_summary["incorrect_predictions"]
-    acc = eval_summary["accuracy_pct"]
+    """Generates a clean markdown evaluation report."""
+    total = eval_summary.get("total_test_cases", 0)
+    correct = eval_summary.get("correct_predictions", 0)
+    incorrect = eval_summary.get("incorrect_predictions", 0)
+    acc = eval_summary.get("accuracy_pct", 0.0)
 
     lines = [
         "# PolicyGuard-4B Evaluation Report",
@@ -191,42 +166,27 @@ def _format_markdown_report(eval_summary: Dict[str, Any]) -> str:
         f"- **Correct Predictions:** {correct} / {total} ({acc}%)",
         f"- **Incorrect Predictions:** {incorrect} / {total}",
         "",
-        "## Performance Metrics",
+        "## Performance Summary",
         "",
         "| Metric | Value |",
         "| :--- | :--- |",
-        f"| **Overall Accuracy** | **{acc}%** ({correct}/{total}) |",
-        f"| **Actual Violations (BLOCK)** | {cb['actual_violations_count']} |",
-        f"| **Actual No-Violations (ALLOW)** | {cb['actual_no_violations_count']} |",
-        f"| **True Violations (TP)** | {cm['true_violations_tp']} |",
-        f"| **True No-Violations (TN)** | {cm['true_no_violations_tn']} |",
-        f"| **False Violations (FP - Over-blocking)** | {cm['false_violations_fp']} |",
-        f"| **False No-Violations (FN - Missed Violations)** | {cm['false_no_violations_fn']} |",
-        f"| **UNKNOWN / Unclassified** | {cm['unknown_on_violation'] + cm['unknown_on_no_violation']} |",
-        f"| **Violation Recall (Sensitivity)** | {cb['violation_recall_sensitivity']:.2%} |",
-        f"| **No-Violation Specificity** | {cb['no_violation_specificity']:.2%} |",
-        f"| **Violation Precision** | {cb['violation_precision']:.2%} |",
-        f"| **F1-Score** | {cb['f1_score']:.4f} |",
-        "",
-        "## Confusion Matrix",
-        "",
-        "| Ground Truth \\ Model Prediction | Predicted `violation` | Predicted `no_violation` | Predicted `UNKNOWN` | Total |",
-        "| :--- | :---: | :---: | :---: | :---: |",
-        f"| **Actual `violation` (BLOCK)** | **{cm['true_violations_tp']}** (TP) | {cm['false_no_violations_fn']} (FN) | {cm['unknown_on_violation']} | {cb['actual_violations_count']} |",
-        f"| **Actual `no_violation` (ALLOW)** | {cm['false_violations_fp']} (FP) | **{cm['true_no_violations_tn']}** (TN) | {cm['unknown_on_no_violation']} | {cb['actual_no_violations_count']} |",
-        "",
+        f"| **Total Test Cases** | {total} |",
+        f"| **Correct** | {correct} |",
+        f"| **Incorrect** | {incorrect} |",
+        f"| **Accuracy** | **{acc}%** |",
+        ""
     ]
 
     mismatches = eval_summary.get("mismatched_cases", [])
     if mismatches:
         lines.append(f"## Mismatched Test Cases ({len(mismatches)} Cases)")
         lines.append("")
-        lines.append("| Case ID | Input File | Expected Label | Expected Decision | Model Prediction | Error Type | Raw Model Output |")
-        lines.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
+        lines.append("| Case ID | Input File | Expected Label | Expected Decision | Model Output (As-Is) |")
+        lines.append("| :--- | :--- | :--- | :--- | :--- |")
         for m in mismatches:
-            clean_raw = (m.get("raw_model_output") or "").replace("\n", " ").replace("|", "\\|")
+            clean_raw = (m.get("model_output") or "").replace("\n", " ").replace("|", "\\|")
             lines.append(
-                f"| `{m['case_id']}` | `{m['input_filename']}` | `{m['expected_label']}` | `{m['expected_decision']}` | `{m['predicted_label']}` | **{m['error_type']}** | `{clean_raw}` |"
+                f"| `{m['case_id']}` | `{m['input_filename']}` | `{m['expected_label']}` | `{m['expected_decision']}` | `{clean_raw}` |"
             )
         lines.append("")
     else:
@@ -243,17 +203,7 @@ def evaluate_predictions(
     ground_truth_path: str = "policyguard_evaluation_ground_truth.csv",
     output_dir: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Evaluates prediction records against ground-truth labels.
-
-    Args:
-        predictions: List of prediction dicts, or path to predictions.csv / predictions.jsonl.
-        ground_truth_path: Path to ground-truth CSV file.
-        output_dir: Optional directory where evaluation.json, evaluation_report.md,
-                    and evaluation_results.csv will be saved.
-
-    Returns:
-        Dictionary with overall evaluation metrics, confusion matrix, and case details.
-    """
+    """Evaluates prediction records directly against ground truth without normalizing outputs."""
     records: List[Dict[str, Any]] = []
     if isinstance(predictions, str):
         if predictions.endswith(".jsonl"):
@@ -278,13 +228,6 @@ def evaluate_predictions(
     correct_count = 0
     incorrect_count = 0
 
-    tp = 0
-    tn = 0
-    fp = 0
-    fn = 0
-    unk_v = 0
-    unk_nv = 0
-
     detailed_results = []
     mismatches = []
     correct_cases = []
@@ -292,8 +235,7 @@ def evaluate_predictions(
     for r in records:
         fname = r.get("input_filename") or r.get("input_file") or ""
         cid = r.get("case_id") or ""
-        predicted_label = r.get("decision") or r.get("normalized_label") or "UNKNOWN"
-        raw_output = r.get("raw_model_output", "")
+        model_out = (r.get("model_output") or r.get("raw_model_output") or "").strip()
         latency = r.get("inference_latency_ms", 0)
 
         # Match against ground truth
@@ -311,42 +253,27 @@ def evaluate_predictions(
         expected_decision = gt_entry["expected_decision"]
         canonical_cid = gt_entry["case_id"]
 
-        is_correct = (predicted_label == expected_label)
-        error_type = None
+        # Check correctness directly against model output as-is
+        out_lower = model_out.lower()
+        if expected_label == "no_violation":
+            is_correct = "no_violation" in out_lower or "no violation" in out_lower
+        elif expected_label == "violation":
+            is_correct = "violation" in out_lower and "no_violation" not in out_lower and "no violation" not in out_lower
+        else:
+            is_correct = False
 
         if is_correct:
             correct_count += 1
-            if expected_label == "violation":
-                tp += 1
-            else:
-                tn += 1
         else:
             incorrect_count += 1
-            if predicted_label in ("UNKNOWN", "ERROR"):
-                error_type = f"UNKNOWN (Expected {expected_label})"
-                if expected_label == "violation":
-                    unk_v += 1
-                else:
-                    unk_nv += 1
-            elif expected_label == "no_violation" and predicted_label == "violation":
-                fp += 1
-                error_type = "FALSE_VIOLATION"
-            elif expected_label == "violation" and predicted_label == "no_violation":
-                fn += 1
-                error_type = "FALSE_NO_VIOLATION"
-            else:
-                error_type = f"MISMATCH ({expected_label} != {predicted_label})"
 
         item = {
             "case_id": canonical_cid,
-            "full_case_id": cid,
             "input_filename": fname or gt_entry["input_file"],
             "expected_decision": expected_decision,
             "expected_label": expected_label,
-            "predicted_label": predicted_label,
+            "model_output": model_out,
             "is_correct": is_correct,
-            "error_type": error_type,
-            "raw_model_output": raw_output,
             "latency_ms": latency
         }
         detailed_results.append(item)
@@ -359,36 +286,12 @@ def evaluate_predictions(
     accuracy = (correct_count / evaluated_cases) if evaluated_cases > 0 else 0.0
     accuracy_pct = round(accuracy * 100.0, 2)
 
-    actual_violations = tp + fn + unk_v
-    actual_no_violations = tn + fp + unk_nv
-
-    precision = round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0
-    recall = round(tp / actual_violations, 4) if actual_violations > 0 else 0.0
-    specificity = round(tn / actual_no_violations, 4) if actual_no_violations > 0 else 0.0
-    f1 = round(2 * (precision * recall) / (precision + recall), 4) if (precision + recall) > 0 else 0.0
-
     eval_summary = {
         "ground_truth_file": ground_truth_path,
         "total_test_cases": evaluated_cases,
         "correct_predictions": correct_count,
         "incorrect_predictions": incorrect_count,
         "accuracy_pct": accuracy_pct,
-        "confusion_matrix": {
-            "true_violations_tp": tp,
-            "true_no_violations_tn": tn,
-            "false_violations_fp": fp,
-            "false_no_violations_fn": fn,
-            "unknown_on_violation": unk_v,
-            "unknown_on_no_violation": unk_nv
-        },
-        "class_breakdown": {
-            "actual_violations_count": actual_violations,
-            "actual_no_violations_count": actual_no_violations,
-            "violation_recall_sensitivity": recall,
-            "no_violation_specificity": specificity,
-            "violation_precision": precision,
-            "f1_score": f1
-        },
         "mismatched_cases": mismatches,
         "correct_cases": correct_cases
     }
@@ -405,11 +308,9 @@ def evaluate_predictions(
             "input_filename",
             "expected_decision",
             "expected_label",
-            "predicted_label",
+            "model_output",
             "is_correct",
-            "error_type",
-            "latency_ms",
-            "raw_model_output"
+            "latency_ms"
         ]
         with open(eval_csv_path, "w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=csv_cols)
@@ -420,11 +321,9 @@ def evaluate_predictions(
                     "input_filename": item["input_filename"],
                     "expected_decision": item["expected_decision"],
                     "expected_label": item["expected_label"],
-                    "predicted_label": item["predicted_label"],
+                    "model_output": item["model_output"],
                     "is_correct": item["is_correct"],
-                    "error_type": item["error_type"] or "",
-                    "latency_ms": item["latency_ms"],
-                    "raw_model_output": item["raw_model_output"]
+                    "latency_ms": item["latency_ms"]
                 })
 
         report_md_path = os.path.join(output_dir, "evaluation_report.md")
@@ -449,22 +348,7 @@ def run_batch(
     max_new_tokens: int = 4,
     ground_truth_path: Optional[str] = "policyguard_evaluation_ground_truth.csv"
 ) -> Dict[str, Any]:
-    """Runs sequential inference over all .txt prompt files in input_dir.
-
-    Args:
-        input_dir: Directory containing .txt prompt files.
-        output_dir: Directory where predictions and summaries will be written.
-        model: Preloaded model instance (loads from model_id if None).
-        tokenizer: Preloaded tokenizer instance (loads from model_id if None).
-        limit: Optional cap on test cases for smoke testing (e.g., 3).
-        resume: Skip already-completed cases matching prompt content hash.
-        model_id: Model checkpoint identifier.
-        max_new_tokens: Max new tokens for generation (default 4).
-        ground_truth_path: Optional path to ground-truth CSV for automatic evaluation.
-
-    Returns:
-        Dictionary containing run summary and output file paths.
-    """
+    """Runs sequential inference over .txt prompt files and records outputs as-is."""
     start_wall_time = time.time()
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -479,7 +363,6 @@ def run_batch(
     # Sort files deterministically
     txt_files = sorted(txt_files, key=natural_sort_key)
 
-    # Validate full experiment requirement (100 inputs) unless limit is specified
     if limit is None and len(txt_files) != 100:
         raise ValueError(
             f"Expected exactly 100 .txt input files in '{input_dir}', but found {len(txt_files)}. "
@@ -538,21 +421,19 @@ def run_batch(
             if resume and fname in existing_cache:
                 cached_rec = existing_cache[fname]
                 if cached_rec.get("prompt_hash") == prompt_hash:
-                    # Dynamically re-parse raw_model_output through the active parse_output()
-                    # to resolve any stale or legacy records from older parser versions
-                    raw_out = cached_rec.get("raw_model_output", "")
-                    has_error = bool(cached_rec.get("inference_error"))
-                    decision = parse_output(raw_out) if not has_error else "ERROR"
-                    cached_rec["decision"] = decision
-                    # Remove deprecated legacy fields if present
+                    raw_out = cached_rec.get("model_output") or cached_rec.get("raw_model_output") or ""
+                    cached_rec["model_output"] = raw_out
+                    cached_rec["raw_model_output"] = raw_out
+                    # Clean out legacy fields
                     cached_rec.pop("normalized_label", None)
                     cached_rec.pop("parse_status", None)
+                    cached_rec.pop("decision", None)
 
                     records.append(cached_rec)
-                    print(f"[{idx}/{total_cases}] {case_id}: CACHED ({decision})")
+                    print(f"[{idx}/{total_cases}] {case_id}: CACHED ({repr(raw_out)})")
                     continue
 
-            # Generate and parse
+            # Generate response directly as-is
             raw_output, latency_ms, error = generate_response(
                 prompt=prompt_text,
                 tokenizer=tokenizer,
@@ -560,28 +441,26 @@ def run_batch(
                 max_new_tokens=max_new_tokens
             )
 
-            decision = parse_output(raw_output) if not error else "ERROR"
-
             record = {
                 "case_id": case_id,
                 "input_filename": fname,
                 "prompt_hash": prompt_hash,
                 "full_input_prompt": prompt_text,
+                "model_output": raw_output,
                 "raw_model_output": raw_output,
-                "decision": decision,
                 "inference_latency_ms": latency_ms,
                 "inference_error": error
             }
 
-            # Write and flush immediately for crash resilience
+            # Write and flush immediately
             jsonl_file.write(json.dumps(record) + "\n")
             jsonl_file.flush()
             records.append(record)
 
-            status_disp = decision if not error else f"ERROR: {error}"
+            status_disp = repr(raw_output) if not error else f"ERROR: {error}"
             print(f"[{idx}/{total_cases}] {case_id}: {status_disp} | {latency_ms:.1f} ms")
 
-    # 5.1 Ensure predictions.jsonl on disk is synced with cleansed records
+    # 5.1 Ensure predictions.jsonl is synced
     with open(jsonl_path, "w", encoding="utf-8") as jf:
         for r in records:
             jf.write(json.dumps(r) + "\n")
@@ -590,8 +469,7 @@ def run_batch(
     csv_fields = [
         "case_id",
         "input_filename",
-        "raw_model_output",
-        "decision",
+        "model_output",
         "inference_latency_ms",
         "inference_error"
     ]
@@ -602,8 +480,7 @@ def run_batch(
             writer.writerow({
                 "case_id": r.get("case_id", ""),
                 "input_filename": r.get("input_filename", ""),
-                "raw_model_output": r.get("raw_model_output", ""),
-                "decision": r.get("decision") or r.get("normalized_label", ""),
+                "model_output": r.get("model_output") or r.get("raw_model_output", ""),
                 "inference_latency_ms": r.get("inference_latency_ms", 0.0),
                 "inference_error": r.get("inference_error", "") or ""
             })
@@ -614,10 +491,6 @@ def run_batch(
         for r in records
         if r.get("inference_error") is None and isinstance(r.get("inference_latency_ms"), (int, float))
     ]
-
-    count_violation = sum(1 for r in records if (r.get("decision") or r.get("normalized_label")) == "violation")
-    count_no_violation = sum(1 for r in records if (r.get("decision") or r.get("normalized_label")) == "no_violation")
-    count_unknown = sum(1 for r in records if (r.get("decision") or r.get("normalized_label")) not in ("violation", "no_violation"))
     successful_count = sum(1 for r in records if r.get("inference_error") is None)
     total_runtime = round(time.time() - start_wall_time, 2)
 
@@ -626,9 +499,6 @@ def run_batch(
         "execution_timestamp": timestamp,
         "number_of_inputs": len(records),
         "successfully_generated_count": successful_count,
-        "count_violation": count_violation,
-        "count_no_violation": count_no_violation,
-        "count_UNKNOWN": count_unknown,
         "average_latency_ms": round(statistics.mean(latencies), 2) if latencies else 0.0,
         "median_latency_ms": round(statistics.median(latencies), 2) if latencies else 0.0,
         "total_runtime_seconds": total_runtime,
@@ -646,9 +516,6 @@ def run_batch(
     print("=" * 60)
     print(f"Total Inputs:           {len(records)}")
     print(f"Successful Inferences:  {successful_count}")
-    print(f"Violations:             {count_violation}")
-    print(f"No Violations:          {count_no_violation}")
-    print(f"UNKNOWN / Errors:       {count_unknown}")
     print(f"Average Latency:        {summary['average_latency_ms']} ms")
     print(f"Total Runtime:          {total_runtime} s")
     print(f"Saved Files:\n  - {jsonl_path}\n  - {csv_path}\n  - {summary_path}\n")
@@ -662,26 +529,15 @@ def run_batch(
         )
         summary["evaluation"] = eval_summary
 
-        # Re-save summary.json with evaluation attached
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
 
-        cm = eval_summary["confusion_matrix"]
-        cb = eval_summary["class_breakdown"]
         print("=" * 60)
         print("GROUND TRUTH EVALUATION RESULTS")
         print("=" * 60)
         print(f"Total Evaluated:        {eval_summary['total_test_cases']}")
-        print(f"Correct Predictions:    {eval_summary['correct_predictions']} / {eval_summary['total_test_cases']} ({eval_summary['accuracy_pct']}%)")
-        print(f"Incorrect Predictions:  {eval_summary['incorrect_predictions']} / {eval_summary['total_test_cases']}")
-        print(f"True Violations (TP):   {cm['true_violations_tp']}")
-        print(f"True No-Violations (TN):{cm['true_no_violations_tn']}")
-        print(f"False Violations (FP):  {cm['false_violations_fp']} (Over-blocking)")
-        print(f"False No-Violations (FN): {cm['false_no_violations_fn']} (Missed Violations)")
-        print(f"Violation Recall:       {cb['violation_recall_sensitivity']:.2%}")
-        print(f"No-Violation Specificity: {cb['no_violation_specificity']:.2%}")
-        print(f"Violation Precision:    {cb['violation_precision']:.2%}")
-        print(f"F1-Score:               {cb['f1_score']:.4f}")
+        print(f"Correct Test Cases:     {eval_summary['correct_predictions']} / {eval_summary['total_test_cases']} ({eval_summary['accuracy_pct']}%)")
+        print(f"Incorrect Test Cases:   {eval_summary['incorrect_predictions']} / {eval_summary['total_test_cases']}")
         print(f"Evaluation Reports Saved:")
         print(f"  - {eval_summary['evaluation_json_path']}")
         print(f"  - {eval_summary['evaluation_csv_path']}")

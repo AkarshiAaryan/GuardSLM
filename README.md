@@ -16,12 +16,11 @@ This repository has one specific purpose:
 1. Loads the pretrained `Rakancorle1/PolicyGuard-4B` causal language model.
 2. Reads the 100 preformatted `.txt` input files in `policyguard_prompts_100/policyguard_inputs`.
 3. Sends each complete prompt directly to the model using deterministic greedy decoding (`do_sample=False`, `max_new_tokens=4`).
-4. Decodes and strictly normalizes responses into `violation`, `no_violation`, or `UNKNOWN`.
+4. Records decoded model responses directly as-is without any normalization or artificial label mapping.
 5. Records inference latency (ms) and captures generation errors.
-6. Evaluates predictions against ground-truth answers in `policyguard_evaluation_ground_truth.csv`.
-7. Computes accuracy, confusion matrix, precision, recall, and false violation/no-violation rates.
-8. Generates evaluation reports (`evaluation_report.md`, `evaluation.json`, `evaluation_results.csv`).
-9. Streams predictions immediately to `predictions.jsonl`, `predictions.csv`, and `summary.json`.
+6. Evaluates predictions directly against `policyguard_evaluation_ground_truth.csv` to calculate accuracy and failure cases.
+7. Generates evaluation reports (`evaluation_report.md`, `evaluation.json`, `evaluation_results.csv`).
+8. Streams predictions immediately to `predictions.jsonl`, `predictions.csv`, and `summary.json`.
 
 ---
 
@@ -49,15 +48,10 @@ Output violation or no_violation.
 
 The pipeline does not alter, wrap, or template the prompt. Each supplied `.txt` file is read as an unmodified UTF-8 string and sent directly to the tokenizer.
 
-### Model Output Mapping
-
-| Model Output (Decoded) | Decision |
-| :--- | :--- |
-| `violation` (or `violation\n\nvi`) | `violation` |
-| `no_violation` / `no violation` | `no_violation` |
-| *Anything else / unparseable* | `UNKNOWN` |
-
-When PolicyGuard predicts `violation`, because `max_new_tokens=4` and `violation` is a single token, the model fills remaining tokens with newlines/repeats (e.g. `violation\n\nvi`). The pipeline checks for `no_violation` first, then `violation`, accurately extracting the decision.
+### Model Output Recording (As-Is)
+Model outputs are recorded directly as generated:
+- `predictions.csv` stores the exact string in `model_output` (e.g. `no_violation`, `violation\n\nvi`).
+- No normalization or artificial `UNKNOWN` labels are applied.
 
 ---
 
