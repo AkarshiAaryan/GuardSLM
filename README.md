@@ -18,10 +18,10 @@ This repository has one specific purpose:
 3. Sends each complete prompt directly to the model using deterministic greedy decoding (`do_sample=False`, `max_new_tokens=4`).
 4. Decodes and strictly normalizes responses into `violation`, `no_violation`, or `UNKNOWN`.
 5. Records inference latency (ms) and captures generation errors.
-6. Streams predictions immediately to `predictions.jsonl`, `predictions.csv`, and `summary.json`.
-
-> **Note on Pipeline Scope:**  
-> This pipeline **does not** generate prompts, parse policies or trajectories, construct synthetic datasets, evaluate predictions against ground truth, or benchmark against other models. It receives complete, model-ready prompt files as strings and collects raw and normalized model outputs.
+6. Evaluates predictions against ground-truth answers in `policyguard_evaluation_ground_truth.csv`.
+7. Computes accuracy, confusion matrix, precision, recall, and false violation/no-violation rates.
+8. Generates evaluation reports (`evaluation_report.md`, `evaluation.json`, `evaluation_results.csv`).
+9. Streams predictions immediately to `predictions.jsonl`, `predictions.csv`, and `summary.json`.
 
 ---
 
@@ -95,13 +95,14 @@ A ready-to-run Google Colab notebook is provided in the repository root:
 3. Run the cells sequentially:
    - **Cell 1:** Environment setup and GPU availability verification.
    - **Cell 2:** Clones the repository in Colab and imports `policyguard_pipeline` (no Google Drive mounting required!).
-   - **Cell 3:** Configures parameters (defaults to bundled `policyguard_prompts_100/policyguard_inputs`).
-   - **Cell 4:** Input file validation (verifies all 100 `.txt` files).
+   - **Cell 3:** Configures parameters and ground-truth path (`policyguard_evaluation_ground_truth.csv`).
+   - **Cell 4:** Input file & ground truth validation (verifies 100 `.txt` files and ground truth records).
    - **Cell 5:** Loads PolicyGuard-4B model and tokenizer into GPU memory.
    - **Cell 6:** Smoke test (runs 3 cases to `results/smoke_test`).
-   - **Cell 7:** Full 100-case experiment execution with streaming progress.
-   - **Cell 8:** Output collection, summary display, and CSV preview.
-   - **Cell 9:** Safe cleanup and GPU memory release.
+   - **Cell 7:** Full 100-case experiment execution with automatic evaluation against ground truth.
+   - **Cell 8:** Operational summary display (counts, latencies, output paths) and CSV preview.
+   - **Cell 9:** Model accuracy, confusion matrix, and detailed mismatched cases evaluation table.
+   - **Cell 10:** Safe cleanup and GPU memory release.
 
 ---
 
@@ -141,7 +142,7 @@ Consolidated tabular record for analysis:
 | TC02_student_peer_grade | TC02_student_peer_grade.txt | violation\n\nvi | violation | 23.8 | |
 
 ### `summary.json`
-Run operational metrics:
+Run operational metrics including ground truth evaluation summary:
 ```json
 {
   "model_checkpoint": "Rakancorle1/PolicyGuard-4B",
@@ -154,9 +155,29 @@ Run operational metrics:
   "average_latency_ms": 25.1,
   "median_latency_ms": 24.8,
   "total_runtime_seconds": 31.4,
-  "output_directory": "results/policyguard_predictions"
+  "output_directory": "results/policyguard_predictions",
+  "evaluation": {
+    "total_test_cases": 100,
+    "correct_predictions": 92,
+    "incorrect_predictions": 8,
+    "accuracy_pct": 92.0,
+    "confusion_matrix": { ... }
+  }
 }
 ```
+
+### `evaluation_report.md`
+Human-readable markdown evaluation report detailing:
+- Overall Accuracy (%) and Correct / Incorrect counts
+- Full confusion matrix (True Violations, True No-Violations, False Violations, False No-Violations)
+- Precision, Recall (Sensitivity), Specificity, and F1-score
+- Detailed table of all mismatched / failed test cases with expected vs predicted labels and raw outputs
+
+### `evaluation_results.csv`
+Per-test-case tabular file joining predictions with ground-truth expected decisions, correctness status (`True`/`False`), and error categorization (`FALSE_VIOLATION`, `FALSE_NO_VIOLATION`, `UNKNOWN`).
+
+### `evaluation.json`
+Machine-readable JSON export of all evaluation metrics and failure case records.
 
 ---
 
@@ -176,9 +197,15 @@ pip install -r requirements.txt
 python policyguard_pipeline.py --limit 3 --output-dir results/smoke_test
 ```
 
-### Full 100-Case Experiment
+### Full 100-Case Experiment (with Automatic Evaluation)
 ```bash
 python policyguard_pipeline.py --output-dir results/full_experiment
+```
+
+### Evaluating Existing Predictions Without Running the Model
+If you already ran inference and have `predictions.csv`:
+```bash
+python policyguard_pipeline.py --evaluate-only results/full_experiment/predictions.csv --output-dir results/full_experiment
 ```
 
 ### Resume Capability
@@ -191,18 +218,19 @@ If interrupted, rerunning with the same output directory automatically skips com
 ```text
 GuardSLM/
 │
-├── policyguard_pipeline.py         # Reusable inference pipeline and CLI
-├── PolicyGuard_100_Test_Cases.ipynb # Colab notebook for running 100 test cases
-├── policyguard_prompts_100/        # Bundled 100 test cases
-│   ├── manifest.csv
-│   ├── policyguard_inputs/
+├── policyguard_pipeline.py                 # Reusable inference & evaluation pipeline and CLI
+├── PolicyGuard_100_Test_Cases.ipynb        # Colab notebook for running 100 test cases & evaluation
+├── policyguard_evaluation_ground_truth.csv # Ground truth expected decisions (100 cases)
+├── policyguard_prompts_100/                # Bundled 100 test cases
+│   ├── manifest.csv                        # Manifest index of test cases
+│   ├── policyguard_inputs/                 # 100 model-ready .txt prompt files
 │   │   ├── TC01_student_own_grade.txt
 │   │   └── ... (100 test cases)
 │   └── README.txt
-├── requirements.txt                # Minimal dependencies
-├── README.md                       # Documentation and usage guide
-├── .gitignore                      # Git ignore rules
-└── LICENSE                         # MIT License
+├── requirements.txt                        # Minimal dependencies
+├── README.md                               # Documentation and usage guide
+├── .gitignore                              # Git ignore rules
+└── LICENSE                                 # MIT License
 ```
 
 ---

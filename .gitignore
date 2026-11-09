@@ -10,3 +10,5 @@ PolicyGuardOutputs/
 smoke_test_output/
 *.jsonl
 *.csv
+!policyguard_evaluation_ground_truth.csv
+!policyguard_prompts_100/manifest.csv
