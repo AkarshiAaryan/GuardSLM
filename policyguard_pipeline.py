@@ -117,30 +117,23 @@ def generate_response(
         return "", round(latency_ms, 2), str(e)
 
 
-def parse_output(raw_output: str) -> Tuple[str, str, Optional[str]]:
-    """Strictly normalizes PolicyGuard outputs into canonical labels.
+def parse_output(raw_output: str) -> str:
+    """Extracts the model decision: 'violation', 'no_violation', or 'UNKNOWN'.
 
-    Normalization mapping:
-    - 'violation' -> 'violation'
-    - 'no_violation' -> 'no_violation'
-    - 'no violation' -> 'no_violation'
-    - Anything else -> 'UNKNOWN'
-
-    Returns:
-        Tuple of (normalized_label, parse_status, parsing_error_or_None).
+    When PolicyGuard predicts 'violation', because max_new_tokens=4 and 'violation'
+    is a single token, the model fills remaining tokens with newlines/repeats (e.g. 'violation\\n\\nvi').
+    We check for 'no_violation' first, then 'violation', avoiding misclassification.
     """
     if not raw_output or not raw_output.strip():
-        return "UNKNOWN", "failed", "Empty model output"
+        return "UNKNOWN"
 
-    clean = raw_output.strip().strip("'\"`.,;:! \n\r\t").lower()
-    clean_norm = re.sub(r'[\s-]+', '_', clean)
-
-    if clean_norm == "no_violation":
-        return "no_violation", "success", None
-    elif clean_norm == "violation":
-        return "violation", "success", None
+    text = raw_output.lower()
+    if "no_violation" in text or "no violation" in text:
+        return "no_violation"
+    elif "violation" in text:
+        return "violation"
     else:
-        return "UNKNOWN", "failed", f"Unrecognized model output: '{raw_output}'"
+        return "UNKNOWN"
 
 
 def run_batch(
@@ -242,7 +235,8 @@ def run_batch(
                 cached_rec = existing_cache[fname]
                 if cached_rec.get("prompt_hash") == prompt_hash:
                     records.append(cached_rec)
-                    print(f"[{idx}/{total_cases}] {case_id}: CACHED ({cached_rec.get('normalized_label')})")
+                    cached_label = cached_rec.get("decision") or cached_rec.get("normalized_label")
+                    print(f"[{idx}/{total_cases}] {case_id}: CACHED ({cached_label})")
                     continue
 
             # Generate and parse
@@ -253,12 +247,7 @@ def run_batch(
                 max_new_tokens=max_new_tokens
             )
 
-            if error:
-                normalized_label = "UNKNOWN"
-                parse_status = "failed"
-                parsing_error = error
-            else:
-                normalized_label, parse_status, parsing_error = parse_output(raw_output)
+            decision = parse_output(raw_output) if not error else "ERROR"
 
             record = {
                 "case_id": case_id,
@@ -266,9 +255,7 @@ def run_batch(
                 "prompt_hash": prompt_hash,
                 "full_input_prompt": prompt_text,
                 "raw_model_output": raw_output,
-                "normalized_label": normalized_label,
-                "parse_status": parse_status,
-                "parsing_error": parsing_error,
+                "decision": decision,
                 "inference_latency_ms": latency_ms,
                 "inference_error": error
             }
@@ -278,7 +265,7 @@ def run_batch(
             jsonl_file.flush()
             records.append(record)
 
-            status_disp = normalized_label if not error else f"ERROR: {error}"
+            status_disp = decision if not error else f"ERROR: {error}"
             print(f"[{idx}/{total_cases}] {case_id}: {status_disp} | {latency_ms:.1f} ms")
 
     # 6. Consolidated CSV output
@@ -286,8 +273,7 @@ def run_batch(
         "case_id",
         "input_filename",
         "raw_model_output",
-        "normalized_label",
-        "parse_status",
+        "decision",
         "inference_latency_ms",
         "inference_error"
     ]
@@ -299,8 +285,7 @@ def run_batch(
                 "case_id": r.get("case_id", ""),
                 "input_filename": r.get("input_filename", ""),
                 "raw_model_output": r.get("raw_model_output", ""),
-                "normalized_label": r.get("normalized_label", ""),
-                "parse_status": r.get("parse_status", ""),
+                "decision": r.get("decision") or r.get("normalized_label", ""),
                 "inference_latency_ms": r.get("inference_latency_ms", 0.0),
                 "inference_error": r.get("inference_error", "") or ""
             })
@@ -312,9 +297,9 @@ def run_batch(
         if r.get("inference_error") is None and isinstance(r.get("inference_latency_ms"), (int, float))
     ]
 
-    count_violation = sum(1 for r in records if r.get("normalized_label") == "violation")
-    count_no_violation = sum(1 for r in records if r.get("normalized_label") == "no_violation")
-    count_unknown = sum(1 for r in records if r.get("normalized_label") == "UNKNOWN")
+    count_violation = sum(1 for r in records if (r.get("decision") or r.get("normalized_label")) == "violation")
+    count_no_violation = sum(1 for r in records if (r.get("decision") or r.get("normalized_label")) == "no_violation")
+    count_unknown = sum(1 for r in records if (r.get("decision") or r.get("normalized_label")) not in ("violation", "no_violation"))
     successful_count = sum(1 for r in records if r.get("inference_error") is None)
     total_runtime = round(time.time() - start_wall_time, 2)
 

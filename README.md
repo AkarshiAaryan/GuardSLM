@@ -51,14 +51,13 @@ The pipeline does not alter, wrap, or template the prompt. Each supplied `.txt` 
 
 ### Model Output Mapping
 
-| Model Output (Decoded) | Normalized Label | Parse Status |
-| :--- | :--- | :--- |
-| `violation` | `violation` | `success` |
-| `no_violation` | `no_violation` | `success` |
-| `no violation` | `no_violation` | `success` |
-| *Anything else / unparseable* | `UNKNOWN` | `failed` |
+| Model Output (Decoded) | Decision |
+| :--- | :--- |
+| `violation` (or `violation\n\nvi`) | `violation` |
+| `no_violation` / `no violation` | `no_violation` |
+| *Anything else / unparseable* | `UNKNOWN` |
 
-Surrounding whitespace and harmless punctuation are stripped before exact matching. Substring guessing is strictly prohibited, ensuring `no_violation` is never misclassified as `violation`.
+When PolicyGuard predicts `violation`, because `max_new_tokens=4` and `violation` is a single token, the model fills remaining tokens with newlines/repeats (e.g. `violation\n\nvi`). The pipeline checks for `no_violation` first, then `violation`, accurately extracting the decision.
 
 ---
 
@@ -128,9 +127,7 @@ Streaming line-by-line JSON record flushed immediately after each test case:
   "prompt_hash": "a1b2c3d4...",
   "full_input_prompt": "Policy: Institutional Grade Privacy Policy ...",
   "raw_model_output": "no_violation",
-  "normalized_label": "no_violation",
-  "parse_status": "success",
-  "parsing_error": null,
+  "decision": "no_violation",
   "inference_latency_ms": 24.5,
   "inference_error": null
 }
@@ -138,10 +135,10 @@ Streaming line-by-line JSON record flushed immediately after each test case:
 
 ### `predictions.csv`
 Consolidated tabular record for analysis:
-| case_id | input_filename | raw_model_output | normalized_label | parse_status | inference_latency_ms | inference_error |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| TC01_student_own_grade | TC01_student_own_grade.txt | no_violation | no_violation | success | 24.5 | |
-| TC02_student_peer_grade | TC02_student_peer_grade.txt | violation | violation | success | 23.8 | |
+| case_id | input_filename | raw_model_output | decision | inference_latency_ms | inference_error |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| TC01_student_own_grade | TC01_student_own_grade.txt | no_violation | no_violation | 24.5 | |
+| TC02_student_peer_grade | TC02_student_peer_grade.txt | violation\n\nvi | violation | 23.8 | |
 
 ### `summary.json`
 Run operational metrics:
