@@ -100,16 +100,37 @@ A ready-to-run Google Colab notebook is provided in the repository root:
 
 ---
 
-## 6. GPU Runtime Requirement
+## 6. Running in Kaggle Notebook
+
+You can also run this entire pipeline on Kaggle using free GPU accelerators (30 hours free GPU per week):
+
+### Step-by-Step Kaggle Instructions:
+1. Go to [kaggle.com/code](https://www.kaggle.com/code) and click **"New Notebook"**.
+2. **Import the Notebook**:
+   - In the notebook menu, click **File -> Import Notebook**.
+   - Select the **GitHub** tab and enter: `https://github.com/AkarshiAaryan/GuardSLM`
+   - Select `PolicyGuard_100_Test_Cases.ipynb` (or simply upload the `.ipynb` file).
+3. **Turn On Hardware Accelerator (GPU)**:
+   - In the right-hand **Notebook Settings** panel, click **Accelerator** and select **GPU T4 x2** (or GPU P100).
+4. **Turn On Internet Access (CRITICAL)**:
+   - In the right-hand **Notebook Settings** panel, toggle **Internet -> ON**.
+   - *(Note: Internet is required to clone the repository and download the model checkpoint from Hugging Face)*.
+5. **Run the Notebook**:
+   - Run the cells in order from Cell 1 to Cell 10.
+   - Outputs are written directly to `/kaggle/working/GuardSLM/results/` and can be downloaded from the **Output** tab on the right sidebar.
+
+---
+
+## 7. GPU Runtime Requirement
 
 PolicyGuard-4B has 4 billion parameters.
-- **Recommended GPU:** NVIDIA T4 (16GB VRAM, standard free Colab tier), A10G, or A100.
+- **Recommended GPU:** NVIDIA T4 (16GB VRAM, standard free Colab/Kaggle tier), A10G, or A100.
 - **Precision:** FP16 on CUDA devices (`device_map="auto"`).
 - **CPU Fallback:** FP32 on CPU (for testing and verification).
 
 ---
 
-## 7. Output Files and Format
+## 8. Output Files and Format
 
 Inference results are written to the configured output directory (`results/policyguard_predictions/`):
 
@@ -121,31 +142,27 @@ Streaming line-by-line JSON record flushed immediately after each test case:
   "input_filename": "TC01_student_own_grade.txt",
   "prompt_hash": "a1b2c3d4...",
   "full_input_prompt": "Policy: Institutional Grade Privacy Policy ...",
-  "raw_model_output": "no_violation",
-  "decision": "no_violation",
+  "model_output": "no_violation",
   "inference_latency_ms": 24.5,
   "inference_error": null
 }
 ```
 
 ### `predictions.csv`
-Consolidated tabular record for analysis:
-| case_id | input_filename | raw_model_output | decision | inference_latency_ms | inference_error |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| TC01_student_own_grade | TC01_student_own_grade.txt | no_violation | no_violation | 24.5 | |
-| TC02_student_peer_grade | TC02_student_peer_grade.txt | violation\n\nvi | violation | 23.8 | |
+Consolidated tabular record storing exact model outputs as-is:
+| case_id | input_filename | model_output | inference_latency_ms | inference_error |
+| :--- | :--- | :--- | :--- | :--- |
+| TC01_student_own_grade | TC01_student_own_grade.txt | no_violation | 24.5 | |
+| TC02_student_peer_grade | TC02_student_peer_grade.txt | violation\n\nvi | 23.8 | |
 
 ### `summary.json`
-Run operational metrics including ground truth evaluation summary:
+Run operational metrics including evaluation results:
 ```json
 {
   "model_checkpoint": "Rakancorle1/PolicyGuard-4B",
   "execution_timestamp": "20261109_120000",
   "number_of_inputs": 100,
   "successfully_generated_count": 100,
-  "count_violation": 49,
-  "count_no_violation": 51,
-  "count_UNKNOWN": 0,
   "average_latency_ms": 25.1,
   "median_latency_ms": 24.8,
   "total_runtime_seconds": 31.4,
@@ -154,8 +171,7 @@ Run operational metrics including ground truth evaluation summary:
     "total_test_cases": 100,
     "correct_predictions": 92,
     "incorrect_predictions": 8,
-    "accuracy_pct": 92.0,
-    "confusion_matrix": { ... }
+    "accuracy_pct": 92.0
   }
 }
 ```
@@ -163,19 +179,18 @@ Run operational metrics including ground truth evaluation summary:
 ### `evaluation_report.md`
 Human-readable markdown evaluation report detailing:
 - Overall Accuracy (%) and Correct / Incorrect counts
-- Full confusion matrix (True Violations, True No-Violations, False Violations, False No-Violations)
-- Precision, Recall (Sensitivity), Specificity, and F1-score
-- Detailed table of all mismatched / failed test cases with expected vs predicted labels and raw outputs
+- Performance summary table
+- Detailed table of all mismatched / failed test cases with expected labels and exact raw model outputs
 
 ### `evaluation_results.csv`
-Per-test-case tabular file joining predictions with ground-truth expected decisions, correctness status (`True`/`False`), and error categorization (`FALSE_VIOLATION`, `FALSE_NO_VIOLATION`, `UNKNOWN`).
+Per-test-case tabular file joining predictions with ground-truth expected decisions, correctness status (`True`/`False`), and latency.
 
 ### `evaluation.json`
-Machine-readable JSON export of all evaluation metrics and failure case records.
+Machine-readable JSON export of evaluation metrics and mismatch case records.
 
 ---
 
-## 8. Command-Line Usage
+## 9. Command-Line Usage
 
 You can run the pipeline locally via terminal using the bundled dataset:
 
@@ -207,13 +222,13 @@ If interrupted, rerunning with the same output directory automatically skips com
 
 ---
 
-## 9. Repository Structure
+## 10. Repository Structure
 
 ```text
 GuardSLM/
 │
 ├── policyguard_pipeline.py                 # Reusable inference & evaluation pipeline and CLI
-├── PolicyGuard_100_Test_Cases.ipynb        # Colab notebook for running 100 test cases & evaluation
+├── PolicyGuard_100_Test_Cases.ipynb        # Colab/Kaggle notebook for running 100 test cases & evaluation
 ├── policyguard_evaluation_ground_truth.csv # Ground truth expected decisions (100 cases)
 ├── policyguard_prompts_100/                # Bundled 100 test cases
 │   ├── manifest.csv                        # Manifest index of test cases
@@ -229,5 +244,5 @@ GuardSLM/
 
 ---
 
-## 10. License
+## 11. License
 This project is licensed under the [MIT License](LICENSE).
