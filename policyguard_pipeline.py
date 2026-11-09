@@ -127,10 +127,10 @@ def parse_output(raw_output: str) -> str:
     if not raw_output or not raw_output.strip():
         return "UNKNOWN"
 
-    text = raw_output.lower()
-    if "no_violation" in text or "no violation" in text:
+    text = raw_output.lower().strip()
+    if any(k in text for k in ("no_violation", "no violation", "no-violation", "noviolation", "allow")):
         return "no_violation"
-    elif "violation" in text:
+    elif any(k in text for k in ("violation", "violat", "block")):
         return "violation"
     else:
         return "UNKNOWN"
@@ -538,9 +538,18 @@ def run_batch(
             if resume and fname in existing_cache:
                 cached_rec = existing_cache[fname]
                 if cached_rec.get("prompt_hash") == prompt_hash:
+                    # Dynamically re-parse raw_model_output through the active parse_output()
+                    # to resolve any stale or legacy records from older parser versions
+                    raw_out = cached_rec.get("raw_model_output", "")
+                    has_error = bool(cached_rec.get("inference_error"))
+                    decision = parse_output(raw_out) if not has_error else "ERROR"
+                    cached_rec["decision"] = decision
+                    # Remove deprecated legacy fields if present
+                    cached_rec.pop("normalized_label", None)
+                    cached_rec.pop("parse_status", None)
+
                     records.append(cached_rec)
-                    cached_label = cached_rec.get("decision") or cached_rec.get("normalized_label")
-                    print(f"[{idx}/{total_cases}] {case_id}: CACHED ({cached_label})")
+                    print(f"[{idx}/{total_cases}] {case_id}: CACHED ({decision})")
                     continue
 
             # Generate and parse
@@ -571,6 +580,11 @@ def run_batch(
 
             status_disp = decision if not error else f"ERROR: {error}"
             print(f"[{idx}/{total_cases}] {case_id}: {status_disp} | {latency_ms:.1f} ms")
+
+    # 5.1 Ensure predictions.jsonl on disk is synced with cleansed records
+    with open(jsonl_path, "w", encoding="utf-8") as jf:
+        for r in records:
+            jf.write(json.dumps(r) + "\n")
 
     # 6. Consolidated CSV output
     csv_fields = [
